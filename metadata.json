@@ -1,0 +1,6 @@
+{
+  "name": "STAVPARTA – Stavební práce Olomoucký kraj",
+  "description": "Profesionální web stavební party OSVČ v Olomouckém kraji. Rekonstrukce, zednické práce, sádrokartony, obklady a dlažby s přehlednou administrací a poptávkovým systémem.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
