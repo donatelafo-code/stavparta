@@ -1,5 +1,5 @@
 import React from 'react';
-import { Star, CheckCircle, ShieldAlert, Quote } from 'lucide-react';
+import { Star, CheckCircle, ShieldAlert } from 'lucide-react';
 import { Testimonial } from '../types';
 
 interface TestimonialsSectionProps {
@@ -14,7 +14,7 @@ export const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({ testim
       <div className="max-w-7xl mx-auto px-4 sm:px-8">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
           <div>
-            <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#F07818] mb-2">
+            <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#B84F00] mb-2">
               <span>Zkušenosti klientů</span>
               <span className="text-slate-300">/</span>
               <span className="text-slate-500 font-medium">Pouze se souhlasem ke zveřejnění</span>
@@ -50,7 +50,7 @@ export const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({ testim
               >
                 <div>
                   {/* Demo Indicator */}
-                  {testimonial.isDemo && (
+                  {testimonial.isDemo && import.meta.env.VITE_DEMO_MODE === 'true' && (
                     <div className="mb-4 inline-flex items-center gap-1.5 px-2 py-0.5 bg-amber-100 border border-amber-300 text-amber-900 rounded text-[10px] font-bold">
                       <ShieldAlert className="w-3 h-3 text-amber-600" />
                       <span>DEMO VZOR – K NAHRAZENÍ REÁLNOU REFERENCÍ</span>

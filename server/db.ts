@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import Database from 'better-sqlite3';
 import {
   BlogPost,
+  ChatLogEntry,
   Lead,
   LeadAttachment,
   LeadCoreDetails,
@@ -26,6 +27,8 @@ import {
   STATUS_LABELS,
 } from '../src/shared/seedData';
 import { CreateLeadPayload } from '../src/shared/schemas';
+import { hasRequiredCompanySettings } from '../src/shared/launchReadiness';
+import { normalizeLegacyMediaUrl } from '../src/shared/responsiveImages';
 import { removeStoredAttachmentFile, StoredAttachmentRecord } from './uploads';
 
 export interface AppBootstrapPayload {
@@ -93,7 +96,96 @@ export class ServerDatabase {
     this.db.pragma('foreign_keys = ON');
     this.initializeSchema();
     this.seedIfFirstBoot();
+    this.sanitizeLegacyPlaceholders();
     this.bootstrapInitialAdmin();
+  }
+
+  private sanitizeLegacyPlaceholders(): void {
+    const row = this.db.prepare('SELECT json FROM settings WHERE id = 1').get() as
+      | { json: string }
+      | undefined;
+    if (!row) return;
+    const current = JSON.parse(row.json) as SiteSettings;
+    let changed = false;
+
+    if (current.phone === '+420 777 000 000') {
+      current.phone = '';
+      changed = true;
+    }
+    if (current.ico === 'Údaj k doplnění před spuštěním') {
+      current.ico = '';
+      changed = true;
+    }
+    if (current.dic === 'CZ (k doplnění)') {
+      current.dic = '';
+      changed = true;
+    }
+
+    if (changed) {
+      this.db
+        .prepare('INSERT OR REPLACE INTO settings (id, json, updated_at) VALUES (1, ?, ?)')
+        .run(JSON.stringify(current), new Date().toISOString());
+    }
+
+    // Upgrade any legacy /src/assets/images/*.jpg references persisted before WebP/AVIF migration
+    const updateService = this.db.prepare('UPDATE services SET json = ? WHERE id = ?');
+    const serviceRows = this.db.prepare('SELECT id, json FROM services').all() as Array<{
+      id: string;
+      json: string;
+    }>;
+    for (const srvRow of serviceRows) {
+      const srv = JSON.parse(srvRow.json) as ServiceItem;
+      if (srv.image) {
+        const nextUrl = normalizeLegacyMediaUrl(srv.image);
+        if (nextUrl !== srv.image) {
+          srv.image = nextUrl;
+          updateService.run(JSON.stringify(srv), srvRow.id);
+        }
+      }
+    }
+
+    const updateProject = this.db.prepare('UPDATE projects SET json = ? WHERE id = ?');
+    const projectRows = this.db.prepare('SELECT id, json FROM projects').all() as Array<{
+      id: string;
+      json: string;
+    }>;
+    for (const projRow of projectRows) {
+      const proj = JSON.parse(projRow.json) as Project;
+      let projChanged = false;
+      for (const photo of proj.photos) {
+        const nextUrl = normalizeLegacyMediaUrl(photo.url);
+        if (nextUrl !== photo.url) {
+          photo.url = nextUrl;
+          projChanged = true;
+        }
+      }
+      if (proj.video?.posterUrl) {
+        const nextPoster = normalizeLegacyMediaUrl(proj.video.posterUrl);
+        if (nextPoster !== proj.video.posterUrl) {
+          proj.video.posterUrl = nextPoster;
+          projChanged = true;
+        }
+      }
+      if (projChanged) {
+        updateProject.run(JSON.stringify(proj), projRow.id);
+      }
+    }
+
+    const updatePost = this.db.prepare('UPDATE blog_posts SET json = ? WHERE id = ?');
+    const postRows = this.db.prepare('SELECT id, json FROM blog_posts').all() as Array<{
+      id: string;
+      json: string;
+    }>;
+    for (const postRow of postRows) {
+      const post = JSON.parse(postRow.json) as BlogPost;
+      if (post.image) {
+        const nextUrl = normalizeLegacyMediaUrl(post.image);
+        if (nextUrl !== post.image) {
+          post.image = nextUrl;
+          updatePost.run(JSON.stringify(post), postRow.id);
+        }
+      }
+    }
   }
 
   public getUploadDir(): string {
@@ -249,6 +341,27 @@ export class ServerDatabase {
         created_at TEXT NOT NULL,
         consent INTEGER NOT NULL,
         source TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS chat_logs (
+        id TEXT PRIMARY KEY,
+        created_at TEXT NOT NULL,
+        session_hash TEXT NOT NULL,
+        user_message TEXT NOT NULL,
+        assistant_reply TEXT NOT NULL,
+        suggest_lead_form INTEGER NOT NULL DEFAULT 0,
+        suggested_service_id TEXT NOT NULL DEFAULT '',
+        model TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_chat_logs_created_at ON chat_logs(created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS chat_daily_usage (
+        day_key TEXT NOT NULL,
+        scope_key TEXT NOT NULL,
+        request_count INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (day_key, scope_key)
       );
     `);
   }
@@ -420,7 +533,22 @@ export class ServerDatabase {
   }
 
   public updateSettings(partial: Partial<SiteSettings>): SiteSettings {
-    const updated: SiteSettings = { ...this.getSettings(), ...partial };
+    const merged: SiteSettings = { ...this.getSettings(), ...partial };
+    const demoProjectsRow = this.db
+      .prepare('SELECT COUNT(*) AS count FROM projects WHERE is_demo = 1')
+      .get() as { count: number };
+    const demoTestimonialsRow = this.db
+      .prepare('SELECT COUNT(*) AS count FROM testimonials WHERE is_demo = 1')
+      .get() as { count: number };
+
+    const updated: SiteSettings = {
+      ...merged,
+      isPublicLaunchReady:
+        hasRequiredCompanySettings(merged) &&
+        demoProjectsRow.count === 0 &&
+        demoTestimonialsRow.count === 0,
+    };
+
     this.db
       .prepare('INSERT OR REPLACE INTO settings (id, json, updated_at) VALUES (1, ?, ?)')
       .run(JSON.stringify(updated), new Date().toISOString());
@@ -901,6 +1029,191 @@ export class ServerDatabase {
     return res.changes > 0;
   }
 
+  public erasePersonalDataByEmail(email: string): {
+    normalizedEmail: string;
+    deletedLeadsCount: number;
+    deletedAttachmentsCount: number;
+    deletedSubscribersCount: number;
+  } {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const result = this.db.transaction(() => {
+      const leadRows = this.db
+        .prepare('SELECT id FROM leads WHERE LOWER(TRIM(email)) = ?')
+        .all(normalizedEmail) as Array<{ id: string }>;
+
+      const storedFiles: string[] = [];
+      const selectFilesStmt = this.db.prepare(
+        'SELECT stored_name FROM lead_attachments WHERE lead_id = ?'
+      );
+      for (const lead of leadRows) {
+        const files = selectFilesStmt.all(lead.id) as Array<{ stored_name: string }>;
+        for (const f of files) {
+          storedFiles.push(f.stored_name);
+        }
+      }
+
+      const deletedLeads = this.db
+        .prepare('DELETE FROM leads WHERE LOWER(TRIM(email)) = ?')
+        .run(normalizedEmail).changes;
+
+      const deletedSubscribers = this.db
+        .prepare('DELETE FROM newsletter_subscribers WHERE LOWER(TRIM(email)) = ?')
+        .run(normalizedEmail).changes;
+
+      return {
+        deletedLeadsCount: deletedLeads,
+        deletedSubscribersCount: deletedSubscribers,
+        storedFiles,
+      };
+    })();
+
+    for (const storedName of result.storedFiles) {
+      removeStoredAttachmentFile(this.uploadDir, storedName);
+    }
+
+    return {
+      normalizedEmail,
+      deletedLeadsCount: result.deletedLeadsCount,
+      deletedAttachmentsCount: result.storedFiles.length,
+      deletedSubscribersCount: result.deletedSubscribersCount,
+    };
+  }
+
+  // --- Chat Daily Quotas & Audit Logs (without extra PII) ---
+  public consumeChatDailyQuota(
+    sessionHash: string,
+    ipDailyLimit: number,
+    globalDailyLimit: number
+  ): { allowed: true } | { allowed: false; reason: 'ip_daily_limit' | 'global_daily_limit' } {
+    const dayKey = new Date(this.nowFn()).toISOString().slice(0, 10);
+    const ipScope = `ip:${sessionHash}`;
+    const globalScope = 'global';
+
+    return this.db.transaction(() => {
+      const globalRow = this.db
+        .prepare('SELECT request_count FROM chat_daily_usage WHERE day_key = ? AND scope_key = ?')
+        .get(dayKey, globalScope) as { request_count: number } | undefined;
+      const globalCount = globalRow?.request_count ?? 0;
+
+      if (globalCount >= globalDailyLimit) {
+        return { allowed: false, reason: 'global_daily_limit' as const };
+      }
+
+      const ipRow = this.db
+        .prepare('SELECT request_count FROM chat_daily_usage WHERE day_key = ? AND scope_key = ?')
+        .get(dayKey, ipScope) as { request_count: number } | undefined;
+      const ipCount = ipRow?.request_count ?? 0;
+
+      if (ipCount >= ipDailyLimit) {
+        return { allowed: false, reason: 'ip_daily_limit' as const };
+      }
+
+      this.db
+        .prepare(
+          `INSERT INTO chat_daily_usage (day_key, scope_key, request_count)
+           VALUES (?, ?, 1)
+           ON CONFLICT(day_key, scope_key)
+           DO UPDATE SET request_count = request_count + 1`
+        )
+        .run(dayKey, globalScope);
+
+      this.db
+        .prepare(
+          `INSERT INTO chat_daily_usage (day_key, scope_key, request_count)
+           VALUES (?, ?, 1)
+           ON CONFLICT(day_key, scope_key)
+           DO UPDATE SET request_count = request_count + 1`
+        )
+        .run(dayKey, ipScope);
+
+      return { allowed: true as const };
+    })();
+  }
+
+  public addChatLog(entry: {
+    sessionHash: string;
+    userMessage: string;
+    assistantReply: string;
+    suggestLeadForm: boolean;
+    suggestedServiceId: string;
+    model: string;
+    status: ChatLogEntry['status'];
+  }): ChatLogEntry {
+    const createdAt = new Date(this.nowFn()).toISOString();
+    const id = `chat-${crypto.randomUUID().slice(0, 12)}`;
+    this.db
+      .prepare(
+        `INSERT INTO chat_logs (
+          id, created_at, session_hash, user_message, assistant_reply,
+          suggest_lead_form, suggested_service_id, model, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        id,
+        createdAt,
+        entry.sessionHash,
+        entry.userMessage,
+        entry.assistantReply,
+        entry.suggestLeadForm ? 1 : 0,
+        entry.suggestedServiceId,
+        entry.model,
+        entry.status
+      );
+
+    return {
+      id,
+      createdAt,
+      sessionHash: entry.sessionHash,
+      userMessage: entry.userMessage,
+      assistantReply: entry.assistantReply,
+      suggestLeadForm: entry.suggestLeadForm,
+      suggestedServiceId: entry.suggestedServiceId,
+      model: entry.model,
+      status: entry.status,
+    };
+  }
+
+  public listChatLogs(limit = 100): ChatLogEntry[] {
+    const safeLimit = Math.max(1, Math.min(500, Math.floor(limit)));
+    const rows = this.db
+      .prepare(
+        `SELECT id, created_at, session_hash, user_message, assistant_reply,
+                suggest_lead_form, suggested_service_id, model, status
+         FROM chat_logs
+         ORDER BY created_at DESC
+         LIMIT ?`
+      )
+      .all(safeLimit) as Array<{
+      id: string;
+      created_at: string;
+      session_hash: string;
+      user_message: string;
+      assistant_reply: string;
+      suggest_lead_form: number;
+      suggested_service_id: string;
+      model: string;
+      status: ChatLogEntry['status'];
+    }>;
+
+    return rows.map((r) => ({
+      id: r.id,
+      createdAt: r.created_at,
+      sessionHash: r.session_hash,
+      userMessage: r.user_message,
+      assistantReply: r.assistant_reply,
+      suggestLeadForm: Boolean(r.suggest_lead_form),
+      suggestedServiceId: r.suggested_service_id,
+      model: r.model,
+      status: r.status,
+    }));
+  }
+
+  public deleteChatLog(id: string): boolean {
+    const res = this.db.prepare('DELETE FROM chat_logs WHERE id = ?').run(id);
+    return res.changes > 0;
+  }
+
   // --- Admin Auth & Sessions ---
   public hasAdminAccount(): boolean {
     const row = this.db.prepare('SELECT COUNT(*) AS count FROM admin_users').get() as {
@@ -1141,17 +1454,54 @@ export class ServerDatabase {
   }
 
   // --- Maintenance & Demo Cleanup ---
-  public clearDemoForProduction(): SiteSettings {
-    const tx = this.db.transaction(() => {
+  public clearDemoForProduction(): {
+    settings: SiteSettings;
+    projects: Project[];
+    testimonials: Testimonial[];
+    remainingDemoProjects: number;
+    remainingDemoTestimonials: number;
+    verifiedClean: boolean;
+  } {
+    const verification = this.db.transaction(() => {
       this.db.prepare('DELETE FROM projects WHERE is_demo = 1').run();
       this.db.prepare('DELETE FROM testimonials WHERE is_demo = 1').run();
-      const updated = { ...this.getSettings(), isPublicLaunchReady: true };
+
+      const demoProjectsRow = this.db
+        .prepare('SELECT COUNT(*) AS count FROM projects WHERE is_demo = 1')
+        .get() as { count: number };
+      const demoTestimonialsRow = this.db
+        .prepare('SELECT COUNT(*) AS count FROM testimonials WHERE is_demo = 1')
+        .get() as { count: number };
+
+      if (demoProjectsRow.count > 0 || demoTestimonialsRow.count > 0) {
+        throw new Error('Failed to remove all demo projects and testimonials from database.');
+      }
+
+      const currentSettings = this.getSettings();
+      const updated: SiteSettings = {
+        ...currentSettings,
+        isPublicLaunchReady: hasRequiredCompanySettings(currentSettings),
+      };
       this.db
         .prepare('INSERT OR REPLACE INTO settings (id, json, updated_at) VALUES (1, ?, ?)')
         .run(JSON.stringify(updated), new Date().toISOString());
-    });
-    tx();
-    return this.getSettings();
+
+      return {
+        remainingDemoProjects: demoProjectsRow.count,
+        remainingDemoTestimonials: demoTestimonialsRow.count,
+      };
+    })();
+
+    return {
+      settings: this.getSettings(),
+      projects: this.listProjects(),
+      testimonials: this.listTestimonials(),
+      remainingDemoProjects: verification.remainingDemoProjects,
+      remainingDemoTestimonials: verification.remainingDemoTestimonials,
+      verifiedClean:
+        verification.remainingDemoProjects === 0 &&
+        verification.remainingDemoTestimonials === 0,
+    };
   }
 
   public restoreFromDump(dump: {

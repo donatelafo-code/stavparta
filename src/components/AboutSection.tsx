@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, CheckCircle2, Shield, Wrench, HeartHandshake, Eye } from 'lucide-react';
+import { Shield, Wrench, HeartHandshake, Eye } from 'lucide-react';
 import { SiteSettings } from '../types';
 
 interface AboutSectionProps {
@@ -14,7 +14,7 @@ export const AboutSection: React.FC<AboutSectionProps> = ({ settings, onOpenLead
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           {/* Left Column: Story & Principles */}
           <div className="lg:col-span-7 space-y-6">
-            <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#F07818]">
+            <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#B84F00]">
               <span>O stavební partě</span>
               <span className="text-slate-300">/</span>
               <span className="text-slate-500 font-medium">Centrála Zábřeh na Moravě & Olomoucký kraj</span>
@@ -38,7 +38,7 @@ export const AboutSection: React.FC<AboutSectionProps> = ({ settings, onOpenLead
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
               <div className="p-4 rounded-lg bg-[#F1F4F6] border border-slate-200/80">
                 <div className="flex items-center gap-2.5 font-bold text-[#17232D] mb-1">
-                  <HeartHandshake className="w-5 h-5 text-[#F07818]" />
+                  <HeartHandshake className="w-5 h-5 text-[#B84F00]" />
                   <span>Přímá komunikace</span>
                 </div>
                 <p className="text-xs text-slate-600 leading-relaxed">
@@ -48,7 +48,7 @@ export const AboutSection: React.FC<AboutSectionProps> = ({ settings, onOpenLead
 
               <div className="p-4 rounded-lg bg-[#F1F4F6] border border-slate-200/80">
                 <div className="flex items-center gap-2.5 font-bold text-[#17232D] mb-1">
-                  <Shield className="w-5 h-5 text-[#F07818]" />
+                  <Shield className="w-5 h-5 text-[#B84F00]" />
                   <span>Dodržení rozpočtu</span>
                 </div>
                 <p className="text-xs text-slate-600 leading-relaxed">
@@ -58,7 +58,7 @@ export const AboutSection: React.FC<AboutSectionProps> = ({ settings, onOpenLead
 
               <div className="p-4 rounded-lg bg-[#F1F4F6] border border-slate-200/80">
                 <div className="flex items-center gap-2.5 font-bold text-[#17232D] mb-1">
-                  <Wrench className="w-5 h-5 text-[#F07818]" />
+                  <Wrench className="w-5 h-5 text-[#B84F00]" />
                   <span>Technologická kázeň</span>
                 </div>
                 <p className="text-xs text-slate-600 leading-relaxed">
@@ -68,7 +68,7 @@ export const AboutSection: React.FC<AboutSectionProps> = ({ settings, onOpenLead
 
               <div className="p-4 rounded-lg bg-[#F1F4F6] border border-slate-200/80">
                 <div className="flex items-center gap-2.5 font-bold text-[#17232D] mb-1">
-                  <Eye className="w-5 h-5 text-[#F07818]" />
+                  <Eye className="w-5 h-5 text-[#B84F00]" />
                   <span>Fotodokumentace</span>
                 </div>
                 <p className="text-xs text-slate-600 leading-relaxed">
@@ -125,7 +125,7 @@ export const AboutSection: React.FC<AboutSectionProps> = ({ settings, onOpenLead
 
               <button
                 onClick={onOpenLeadForm}
-                className="w-full py-3.5 bg-[#F07818] hover:bg-[#d9660e] text-white font-bold text-sm rounded shadow transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3.5 bg-[#C2560A] hover:bg-[#9E4306] text-white font-bold text-sm rounded shadow transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>Domluvit osobní zaměření</span>
               </button>

@@ -1,0 +1,31 @@
+{
+  "name": "STAVPARTA – Stavební práce a rekonstrukce",
+  "short_name": "STAVPARTA",
+  "description": "Kompletní rekonstrukce bytů, renovace bytových jader, zednické práce, sádrokartony a obklady v Olomouckém kraji.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F1F4F6",
+  "theme_color": "#17232D",
+  "lang": "cs",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

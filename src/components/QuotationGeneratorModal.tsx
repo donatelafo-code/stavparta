@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   X,
   Printer,
@@ -9,6 +9,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { Lead, SiteSettings } from '../types';
+import { useModalAccessibility } from '../hooks/useModalAccessibility';
 
 export interface QuoteItem {
   id: string;
@@ -32,6 +33,14 @@ export const QuotationGeneratorModal: React.FC<QuotationGeneratorModalProps> = (
   onClose,
   onSaveQuoteToLeadNotes,
 }) => {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+
+  useModalAccessibility({
+    isOpen: true,
+    onClose,
+    containerRef: dialogRef,
+  });
+
   const [dates] = useState(() => {
     const now = Date.now();
     return {
@@ -68,10 +77,14 @@ export const QuotationGeneratorModal: React.FC<QuotationGeneratorModalProps> = (
     }
   });
 
-  const [dphRate, setDphRate] = useState<number>(12); // 12% pro bydlení dle zákona ČR, nebo 21% standard
+  const [dphRate, setDphRate] = useState<number>(() => (settings.isVatPayer ? 21 : 0));
   const [discountPercent] = useState<number>(0);
+  const warrantySentence =
+    settings.warrantyMonths && settings.warrantyMonths > 0
+      ? `se zárukou ${settings.warrantyMonths} měsíců na provedené dílo`
+      : 'se záruční dobou dle písemné smlouvy o dílo';
   const [noteToClient, setNoteToClient] = useState<string>(
-    'Cenová nabídka je platná 30 dní od vystavení. Přesný harmonogram zahájení a ukončení prací bude potvrzen ve smlouvě o dílo se zárukou 36 měsíců na provedené dílo.'
+    `Cenová nabídka je platná 30 dní od vystavení. Přesný harmonogram zahájení a ukončení prací bude potvrzen ve smlouvě o dílo (${warrantySentence}). STAVPARTA aktuálně neprovádí elektrikářské práce ani elektrorevize – případné elektro práce si investor zajišťuje samostatně přes oprávněného odborníka.`
   );
 
   // Financial calculations
@@ -123,19 +136,29 @@ export const QuotationGeneratorModal: React.FC<QuotationGeneratorModalProps> = (
   };
 
   return (
-    <div className="fixed inset-0 z-70 bg-black/75 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[94vh] flex flex-col border border-slate-300 overflow-hidden print:m-0 print:p-0 print:border-none print:shadow-none print:max-w-none">
+    <div
+      className="fixed inset-0 z-70 bg-black/75 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto"
+      onClick={onClose}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="quotation-modal-title"
+        className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[94vh] flex flex-col border border-slate-300 overflow-hidden print:m-0 print:p-0 print:border-none print:shadow-none print:max-w-none"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Top Control Bar (Hidden when printing) */}
         <div className="bg-[#17232D] text-white px-6 py-4 flex items-center justify-between border-b border-[#263746] print:hidden">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded bg-[#F07818] flex items-center justify-center text-white font-bold">
+            <div className="w-8 h-8 rounded bg-[#C2560A] flex items-center justify-center text-white font-bold">
               <FileCheck className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-extrabold tracking-tight">
+              <h3 id="quotation-modal-title" className="text-sm font-extrabold tracking-tight">
                 Položková cenová nabídka – {quoteNumber}
               </h3>
-              <span className="text-[11px] text-slate-400">
+              <span className="text-[11px] text-slate-300">
                 Zákazník: {lead.name} ({lead.location})
               </span>
             </div>
@@ -143,6 +166,7 @@ export const QuotationGeneratorModal: React.FC<QuotationGeneratorModalProps> = (
 
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={handleSaveToNotes}
               className="px-3 py-1.5 bg-[#263746] hover:bg-[#34485a] text-white text-xs font-semibold rounded flex items-center gap-1.5 cursor-pointer"
               title="Uložit rekapitulaci do historie poznámek poptávky"
@@ -152,16 +176,19 @@ export const QuotationGeneratorModal: React.FC<QuotationGeneratorModalProps> = (
             </button>
 
             <button
+              type="button"
               onClick={handlePrint}
-              className="px-3 py-1.5 bg-[#F07818] hover:bg-[#d9660e] text-white text-xs font-bold rounded flex items-center gap-1.5 shadow-sm cursor-pointer"
+              className="px-3 py-1.5 bg-[#C2560A] hover:bg-[#9E4306] text-white text-xs font-bold rounded flex items-center gap-1.5 shadow-sm cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>Tisk / Uložit PDF</span>
             </button>
 
             <button
+              type="button"
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-white rounded cursor-pointer"
+              aria-label="Zavřít generátor cenové nabídky"
+              className="p-1.5 text-slate-300 hover:text-white rounded cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -176,21 +203,27 @@ export const QuotationGeneratorModal: React.FC<QuotationGeneratorModalProps> = (
               <div className="text-2xl font-black text-[#17232D] tracking-tight">
                 STAVPARTA
               </div>
-              <div className="text-xs text-[#F07818] font-bold mt-0.5">
+              <div className="text-xs text-[#B84F00] font-bold mt-0.5">
                 Stavební a řemeslné práce • Centrála Zábřeh na Moravě
               </div>
-              <div className="text-[11px] text-slate-500 mt-2 space-y-0.5">
-                <div>Telefon: {settings.phone}</div>
-                <div>E-mail: {settings.email}</div>
-                <div>IČO: {settings.ico}</div>
-                <div>DIČ: {settings.dic}</div>
-                <div>Sídlo: Zábřeh na Moravě (PSČ 789 01)</div>
+              <div className="text-[11px] text-slate-600 mt-2 space-y-0.5">
+                {settings.phone.trim() && <div>Telefon: {settings.phone}</div>}
+                {settings.email.trim() && <div>E-mail: {settings.email}</div>}
+                <div>IČO: {settings.ico.trim() || 'k doplnění v nastavení'}</div>
+                <div>
+                  DIČ: {settings.dic.trim() || 'k doplnění v nastavení'} (
+                  {settings.isVatPayer ? 'Plátce DPH' : 'Neplátce DPH'})
+                </div>
+                {settings.certificationNumber?.trim() && (
+                  <div>Oprávnění / osvědčení: {settings.certificationNumber.trim()}</div>
+                )}
+                <div>Sídlo: {settings.headquarters || 'Zábřeh na Moravě'}</div>
                 <div>Působnost: {settings.operatingRegion}</div>
               </div>
             </div>
 
             <div className="sm:text-right bg-slate-50 p-4 rounded-xl border border-slate-200 min-w-[240px]">
-              <div className="text-xs font-mono font-bold text-[#F07818]">
+              <div className="text-xs font-mono font-bold text-[#B84F00]">
                 {quoteNumber}
               </div>
               <h2 className="text-lg font-black text-[#17232D] mt-0.5">
@@ -246,7 +279,7 @@ export const QuotationGeneratorModal: React.FC<QuotationGeneratorModalProps> = (
                 onClick={handleAddItem}
                 className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded flex items-center gap-1 cursor-pointer print:hidden"
               >
-                <Plus className="w-3.5 h-3.5 text-[#F07818]" />
+                <Plus className="w-3.5 h-3.5 text-[#B84F00]" />
                 <span>Přidat položku</span>
               </button>
             </div>
@@ -260,7 +293,7 @@ export const QuotationGeneratorModal: React.FC<QuotationGeneratorModalProps> = (
                     <th className="py-2.5 px-3 w-20 text-right">Množství</th>
                     <th className="py-2.5 px-3 w-28 text-right">Cena / MJ</th>
                     <th className="py-2.5 px-3 w-28 text-right">Celkem bez DPH</th>
-                    <th className="py-2.5 px-2 w-8 print:hidden"></th>
+                    <th className="py-2.5 px-2 w-8 print:hidden"><span className="sr-only">Odstranit</span></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -271,37 +304,41 @@ export const QuotationGeneratorModal: React.FC<QuotationGeneratorModalProps> = (
                         <td className="py-2.5 px-3">
                           <input
                             type="text"
+                            aria-label="Popis položky"
                             value={item.name}
                             onChange={(e) => handleUpdateItem(item.id, 'name', e.target.value)}
-                            className="w-full font-medium text-slate-800 bg-transparent border-0 focus:ring-1 focus:ring-[#F07818] rounded px-1 -mx-1"
+                            className="w-full font-medium text-slate-800 bg-transparent border-0 focus:ring-1 focus:ring-[#C2560A] rounded px-1 -mx-1"
                           />
                         </td>
                         <td className="py-2.5 px-3 text-center">
                           <input
                             type="text"
+                            aria-label="Jednotka"
                             value={item.unit}
                             onChange={(e) => handleUpdateItem(item.id, 'unit', e.target.value)}
-                            className="w-14 text-center text-slate-500 bg-transparent border-0 focus:ring-1 focus:ring-[#F07818] rounded"
+                            className="w-14 text-center text-slate-600 bg-transparent border-0 focus:ring-1 focus:ring-[#C2560A] rounded"
                           />
                         </td>
                         <td className="py-2.5 px-3 text-right">
                           <input
                             type="number"
+                            aria-label="Množství"
                             min="0"
                             step="0.5"
                             value={item.quantity}
                             onChange={(e) => handleUpdateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
-                            className="w-16 text-right font-medium text-slate-800 bg-transparent border-0 focus:ring-1 focus:ring-[#F07818] rounded"
+                            className="w-16 text-right font-medium text-slate-800 bg-transparent border-0 focus:ring-1 focus:ring-[#C2560A] rounded"
                           />
                         </td>
                         <td className="py-2.5 px-3 text-right">
                           <input
                             type="number"
+                            aria-label="Cena za jednotku"
                             min="0"
                             step="50"
                             value={item.unitPrice}
                             onChange={(e) => handleUpdateItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
-                            className="w-24 text-right font-mono text-slate-800 bg-transparent border-0 focus:ring-1 focus:ring-[#F07818] rounded"
+                            className="w-24 text-right font-mono text-slate-800 bg-transparent border-0 focus:ring-1 focus:ring-[#C2560A] rounded"
                           />
                         </td>
                         <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
@@ -311,7 +348,8 @@ export const QuotationGeneratorModal: React.FC<QuotationGeneratorModalProps> = (
                           <button
                             type="button"
                             onClick={() => handleRemoveItem(item.id)}
-                            className="text-slate-300 hover:text-rose-600 transition-colors cursor-pointer"
+                            aria-label={`Odstranit položku ${item.name}`}
+                            className="text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -327,55 +365,68 @@ export const QuotationGeneratorModal: React.FC<QuotationGeneratorModalProps> = (
           {/* Calculation Breakdown & DPH Rate Switcher */}
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-6 pt-2">
             <div className="sm:col-span-7 space-y-3">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              <label htmlFor="quotation-note-textarea" className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
                 Poznámka k nabídce a platebním podmínkám
-              </div>
+              </label>
               <textarea
+                id="quotation-note-textarea"
                 rows={3}
                 value={noteToClient}
                 onChange={(e) => setNoteToClient(e.target.value)}
-                className="w-full text-xs text-slate-600 border border-slate-200 rounded-lg p-2.5 focus:outline-none focus:border-[#F07818]"
+                className="w-full text-xs text-slate-700 border border-slate-200 rounded-lg p-2.5 focus:outline-none focus:border-[#C2560A]"
               />
 
               <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-lg text-[11px] text-amber-900 flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <span>
-                  <strong>Garance ceny a kvality:</strong> Veškeré práce jsou realizovány podle schválených
-                  technologických postupů a na základě písemné smlouvy o dílo se zárukou 36 měsíců.
+                  <strong>Rozsah a podmínky díla:</strong> Veškeré stavební práce jsou realizovány
+                  podle technologických postupů výrobců a písemné smlouvy o dílo (
+                  {settings.warrantyMonths && settings.warrantyMonths > 0
+                    ? `záruka ${settings.warrantyMonths} měsíců`
+                    : 'záruka dle smlouvy o dílo'}
+                  ). Součástí nabídky nejsou elektrikářské práce ani revize elektrických zařízení.
                 </span>
               </div>
             </div>
 
             <div className="sm:col-span-5 bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
               <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-500">Mezisoučet položek:</span>
+                <span className="text-slate-600">Mezisoučet položek:</span>
                 <span className="font-mono font-bold text-slate-800">
                   {subtotalWithoutDph.toLocaleString('cs-CZ')} Kč
                 </span>
               </div>
 
               {/* DPH selector */}
-              <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-200">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-slate-600">Sazba DPH:</span>
-                  <select
-                    value={dphRate}
-                    onChange={(e) => setDphRate(parseInt(e.target.value, 10))}
-                    className="text-xs font-bold border border-slate-300 rounded px-1.5 py-0.5 bg-white cursor-pointer"
-                  >
-                    <option value={12}>12 % (Bydlení)</option>
-                    <option value={21}>21 % (Standard)</option>
-                    <option value={0}>0 % (Přenesená daňová pov.)</option>
-                  </select>
+              <div className="space-y-1.5 pt-1 border-t border-slate-200">
+                <div className="flex justify-between items-center text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <label htmlFor="quotation-dph-select" className="text-slate-600">Sazba DPH:</label>
+                    <select
+                      id="quotation-dph-select"
+                      value={dphRate}
+                      onChange={(e) => setDphRate(parseInt(e.target.value, 10))}
+                      className="text-xs font-bold border border-slate-300 rounded px-1.5 py-0.5 bg-white cursor-pointer"
+                    >
+                      <option value={0}>0 % (Neplátce DPH / bez DPH)</option>
+                      <option value={12}>12 %</option>
+                      <option value={21}>21 %</option>
+                    </select>
+                  </div>
+                  <span className="font-mono text-slate-700">
+                    {dphAmount.toLocaleString('cs-CZ')} Kč
+                  </span>
                 </div>
-                <span className="font-mono text-slate-700">
-                  {dphAmount.toLocaleString('cs-CZ')} Kč
-                </span>
+                <p className="text-[10px] text-amber-800 leading-tight">
+                  Sazbu DPH a režim přenesené daňové povinnosti potvrďte s daňovým poradcem.
+                </p>
               </div>
 
               <div className="flex justify-between items-baseline pt-2 border-t-2 border-slate-300">
-                <span className="text-xs font-extrabold text-[#17232D]">CELKEM S DPH:</span>
-                <span className="text-xl font-black text-[#F07818] font-mono">
+                <span className="text-xs font-extrabold text-[#17232D]">
+                  {dphRate === 0 ? 'CELKEM K ÚHRADĚ:' : 'CELKEM S DPH:'}
+                </span>
+                <span className="text-xl font-black text-[#B84F00] font-mono">
                   {grandTotal.toLocaleString('cs-CZ')} Kč
                 </span>
               </div>
@@ -386,7 +437,7 @@ export const QuotationGeneratorModal: React.FC<QuotationGeneratorModalProps> = (
           <div className="pt-8 border-t border-slate-200 flex justify-between items-end text-xs text-slate-500">
             <div>
               <div>Vypracoval: <strong>STAVPARTA – koordinace staveb</strong></div>
-              <div>V Olomouci dne: {todayStr}</div>
+              <div>V Zábřehu na Moravě dne: {todayStr}</div>
             </div>
             <div className="text-right border-t border-dashed border-slate-400 pt-2 w-48 text-center text-[10px]">
               Razítko a podpis dodavatele

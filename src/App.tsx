@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Send } from 'lucide-react';
 import {
   INITIAL_BLOG_POSTS,
@@ -12,30 +13,266 @@ import {
   INITIAL_SETTINGS,
   INITIAL_TESTIMONIALS,
 } from './shared/seedData';
+import { findCityPageBySlug } from './shared/cityPages';
 import { api } from './services/api';
+import { getPreferredScrollBehavior } from './hooks/useModalAccessibility';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { AboutSection } from './components/AboutSection';
 import { ServicesSection } from './components/ServicesSection';
-import { ServiceDetailPage } from './components/ServiceDetailPage';
 import { ProjectsSection } from './components/ProjectsSection';
-import { CaseStudiesSection } from './components/CaseStudiesSection';
-import { MaterialComparisonSection } from './components/MaterialComparisonSection';
 import { FaqSection } from './components/FaqSection';
 import { WhyUsSection } from './components/WhyUsSection';
 import { ProcessSection } from './components/ProcessSection';
 import { TestimonialsSection } from './components/TestimonialsSection';
 import { LeadFormSection, LeadPrefillNote } from './components/LeadFormSection';
 import { PriceCalculatorSection, CalculatedLeadData } from './components/PriceCalculatorSection';
-import { ServiceAreaMapSection } from './components/ServiceAreaMapSection';
 import { Footer } from './components/Footer';
-import { AdminDashboard } from './components/AdminDashboard';
-import { GdprModal } from './components/GdprModal';
 import { ChatWidget } from './components/ChatWidget';
-import { BlogSection } from './components/BlogSection';
+import { SeoHead } from './components/SeoHead';
 import { BlogPost, Lead, Project, ServiceItem, SiteSettings, Testimonial } from './types';
 
+const ServiceDetailPage = lazy(() =>
+  import('./components/ServiceDetailPage').then((m) => ({ default: m.ServiceDetailPage }))
+);
+const BlogArticlePage = lazy(() =>
+  import('./components/BlogArticlePage').then((m) => ({ default: m.BlogArticlePage }))
+);
+const CityLandingPage = lazy(() =>
+  import('./components/CityLandingPage').then((m) => ({ default: m.CityLandingPage }))
+);
+const NotFoundPage = lazy(() =>
+  import('./components/NotFoundPage').then((m) => ({ default: m.NotFoundPage }))
+);
+const CaseStudiesSection = lazy(() =>
+  import('./components/CaseStudiesSection').then((m) => ({ default: m.CaseStudiesSection }))
+);
+const MaterialComparisonSection = lazy(() =>
+  import('./components/MaterialComparisonSection').then((m) => ({
+    default: m.MaterialComparisonSection,
+  }))
+);
+const BlogSection = lazy(() =>
+  import('./components/BlogSection').then((m) => ({ default: m.BlogSection }))
+);
+const ServiceAreaMapSection = lazy(() =>
+  import('./components/ServiceAreaMapSection').then((m) => ({
+    default: m.ServiceAreaMapSection,
+  }))
+);
+const AdminDashboard = lazy(() =>
+  import('./components/AdminDashboard').then((m) => ({ default: m.AdminDashboard }))
+);
+const GdprModal = lazy(() =>
+  import('./components/GdprModal').then((m) => ({ default: m.GdprModal }))
+);
+const TermsModal = lazy(() =>
+  import('./components/TermsModal').then((m) => ({ default: m.TermsModal }))
+);
+
+const SectionFallback: React.FC<{ label?: string }> = ({ label }) => (
+  <div className="py-16 bg-white border-b border-slate-200">
+    <div className="max-w-7xl mx-auto px-4 sm:px-8 text-center text-xs text-slate-400">
+      {label || 'Načítám sekci…'}
+    </div>
+  </div>
+);
+
+interface ServiceRouteViewProps {
+  settings: SiteSettings;
+  services: ServiceItem[];
+  testimonials: Testimonial[];
+  onOpenLeadForm: (serviceId?: string) => void;
+}
+
+const ServiceRouteView: React.FC<ServiceRouteViewProps> = ({
+  settings,
+  services,
+  testimonials,
+  onOpenLeadForm,
+}) => {
+  const { slug } = useParams<{ slug: string }>();
+  const service = services.find((s) => s.slug === slug && s.isActive);
+
+  if (!service) {
+    return (
+      <>
+        <SeoHead
+          title="Služba nenalezena | STAVPARTA"
+          description="Požadovaná stavební služba nebyla nalezena."
+          canonicalPath={`/sluzba/${slug || ''}`}
+          pageType="not_found"
+          noIndex
+          settings={settings}
+          services={services}
+          testimonials={testimonials}
+        />
+        <NotFoundPage onOpenLeadForm={() => onOpenLeadForm()} />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <SeoHead
+        title={service.metaTitle || `${service.title} | STAVPARTA`}
+        description={service.metaDescription || service.shortDescription}
+        canonicalPath={`/sluzba/${service.slug}`}
+        pageType="service"
+        ogImage={service.image || '/og-image.jpg'}
+        settings={settings}
+        services={services}
+        testimonials={testimonials}
+        activeService={service}
+        breadcrumbs={[
+          { name: 'Úvod', path: '/' },
+          { name: 'Služby', path: '/#sluzby' },
+          { name: service.title, path: `/sluzba/${service.slug}` },
+        ]}
+      />
+      <ServiceDetailPage
+        service={service}
+        allServices={services}
+        onOpenLeadForm={onOpenLeadForm}
+      />
+    </>
+  );
+};
+
+interface BlogRouteViewProps {
+  settings: SiteSettings;
+  services: ServiceItem[];
+  blogPosts: BlogPost[];
+  testimonials: Testimonial[];
+  onConsultTopic: (serviceId: string, articleTitle: string) => void;
+  onOpenLeadForm: () => void;
+}
+
+const BlogRouteView: React.FC<BlogRouteViewProps> = ({
+  settings,
+  services,
+  blogPosts,
+  testimonials,
+  onConsultTopic,
+  onOpenLeadForm,
+}) => {
+  const { slug } = useParams<{ slug: string }>();
+  const post = blogPosts.find((p) => p.slug === slug && p.isPublished);
+
+  if (!post) {
+    return (
+      <>
+        <SeoHead
+          title="Článek nenalezen | STAVPARTA"
+          description="Požadovaný článek nebyl nalezen."
+          canonicalPath={`/blog/${slug || ''}`}
+          pageType="not_found"
+          noIndex
+          settings={settings}
+          services={services}
+          testimonials={testimonials}
+        />
+        <NotFoundPage onOpenLeadForm={onOpenLeadForm} />
+      </>
+    );
+  }
+
+  const relatedService = services.find((s) => s.id === post.relatedServiceId && s.isActive);
+
+  return (
+    <>
+      <SeoHead
+        title={`${post.title} | Blog STAVPARTA`}
+        description={post.excerpt}
+        canonicalPath={`/blog/${post.slug}`}
+        pageType="blog"
+        ogType="article"
+        ogImage={post.image || '/og-image.jpg'}
+        settings={settings}
+        services={services}
+        testimonials={testimonials}
+        activePost={post}
+        breadcrumbs={[
+          { name: 'Úvod', path: '/' },
+          { name: 'Blog & Aktuality', path: '/#blog' },
+          { name: post.title, path: `/blog/${post.slug}` },
+        ]}
+      />
+      <BlogArticlePage
+        post={post}
+        allPosts={blogPosts}
+        relatedService={relatedService}
+        onConsultTopic={onConsultTopic}
+      />
+    </>
+  );
+};
+
+interface CityRouteViewProps {
+  settings: SiteSettings;
+  services: ServiceItem[];
+  testimonials: Testimonial[];
+  onOpenLeadForm: (serviceId?: string) => void;
+}
+
+const CityRouteView: React.FC<CityRouteViewProps> = ({
+  settings,
+  services,
+  testimonials,
+  onOpenLeadForm,
+}) => {
+  const { citySlug } = useParams<{ citySlug: string }>();
+  const city = findCityPageBySlug(citySlug);
+
+  if (!city) {
+    return (
+      <>
+        <SeoHead
+          title="Lokalita nenalezena | STAVPARTA"
+          description="Požadovaná lokalita nebyla nalezena."
+          canonicalPath={`/lokalita/${citySlug || ''}`}
+          pageType="not_found"
+          noIndex
+          settings={settings}
+          services={services}
+          testimonials={testimonials}
+        />
+        <NotFoundPage onOpenLeadForm={() => onOpenLeadForm()} />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <SeoHead
+        title={city.metaTitle}
+        description={city.metaDescription}
+        canonicalPath={`/lokalita/${city.slug}`}
+        pageType="city"
+        settings={settings}
+        services={services}
+        testimonials={testimonials}
+        activeCity={city}
+        breadcrumbs={[
+          { name: 'Úvod', path: '/' },
+          { name: 'Působnost', path: '/#pusobnost' },
+          { name: city.cityName, path: `/lokalita/${city.slug}` },
+        ]}
+      />
+      <CityLandingPage
+        city={city}
+        services={services}
+        settings={settings}
+        onOpenLeadForm={onOpenLeadForm}
+      />
+    </>
+  );
+};
+
 export default function App() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
   // Server-backed application state (initialized cleanly from seed defaults while hydrating)
   const [settings, setSettings] = useState<SiteSettings>(INITIAL_SETTINGS);
   const [services, setServices] = useState<ServiceItem[]>(INITIAL_SERVICES);
@@ -44,13 +281,14 @@ export default function App() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [blogPosts, setBlogPosts] = useState<BlogPost[]>(INITIAL_BLOG_POSTS);
 
-  // View state: Dedicated subpage vs Home overview
-  const [activeSubpageService, setActiveSubpageService] = useState<ServiceItem | null>(null);
-  const [activeBlogSlug, setActiveBlogSlug] = useState<string | null>(null);
-
   // Modal states
   const [isAdminOpen, setIsAdminOpen] = useState(false);
-  const [isGdprOpen, setIsGdprOpen] = useState(false);
+  const [isGdprOpen, setIsGdprOpen] = useState(
+    () => typeof window !== 'undefined' && window.location.hash === '#gdpr'
+  );
+  const [isTermsOpen, setIsTermsOpen] = useState(
+    () => typeof window !== 'undefined' && window.location.hash === '#obchodni-podminky'
+  );
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [preselectedServiceId, setPreselectedServiceId] = useState<string | undefined>(undefined);
   const [prefilledCalculation, setPrefilledCalculation] = useState<CalculatedLeadData | null>(null);
@@ -64,11 +302,6 @@ export default function App() {
       setProjects(bootstrap.projects);
       setTestimonials(bootstrap.testimonials);
       setBlogPosts(bootstrap.blogPosts);
-
-      setActiveSubpageService((prev) => {
-        if (!prev) return null;
-        return bootstrap.services.find((s) => s.id === prev.id) || prev;
-      });
     } catch (err) {
       console.error('Failed to bootstrap public app data:', err);
     }
@@ -121,55 +354,74 @@ export default function App() {
     };
   }, []);
 
-  // Handle URL hash navigation for direct links (e.g. #sluzba/renovace-bytovych-jader or #blog/slug)
+  // Redirect legacy hash subpage URLs (#sluzba/:slug, #blog/:slug) to clean SEO paths
   useEffect(() => {
-    const handleHash = () => {
-      const hash = window.location.hash;
-      if (hash.startsWith('#sluzba/')) {
-        const slug = hash.replace('#sluzba/', '');
-        const matched = services.find((s) => s.slug === slug);
-        if (matched) {
-          setActiveSubpageService(matched);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-      } else if (hash.startsWith('#blog/')) {
-        const blogSlug = hash.replace('#blog/', '');
-        const matchedPost = blogPosts.find((p) => p.slug === blogSlug && p.isPublished);
-        if (matchedPost) {
-          setActiveSubpageService(null);
-          setActiveBlogSlug(blogSlug);
-          setTimeout(() => {
-            document.getElementById('blog')?.scrollIntoView({ behavior: 'smooth' });
-          }, 80);
-        }
+    const hash = location.hash;
+    if (hash.startsWith('#sluzba/')) {
+      const slug = hash.replace('#sluzba/', '').trim();
+      if (slug) {
+        navigate(`/sluzba/${slug}`, { replace: true });
+      }
+      return;
+    }
+    if (hash.startsWith('#blog/')) {
+      const slug = hash.replace('#blog/', '').trim();
+      if (slug) {
+        navigate(`/blog/${slug}`, { replace: true });
+      }
+    }
+  }, [location.hash, navigate]);
+
+  useEffect(() => {
+    const handleHashModals = () => {
+      if (window.location.hash === '#obchodni-podminky') {
+        setIsTermsOpen(true);
+      } else if (window.location.hash === '#gdpr') {
+        setIsGdprOpen(true);
       }
     };
+    window.addEventListener('hashchange', handleHashModals);
+    return () => window.removeEventListener('hashchange', handleHashModals);
+  }, []);
 
-    handleHash();
-    window.addEventListener('hashchange', handleHash);
-    return () => window.removeEventListener('hashchange', handleHash);
-  }, [services, blogPosts]);
+  // Handle route changes: scroll to anchor when hash points to a section on '/', else scroll top
+  useEffect(() => {
+    const behavior = getPreferredScrollBehavior();
+    if (location.pathname === '/' && location.hash) {
+      const targetId = location.hash.replace(/^#/, '');
+      if (targetId && targetId !== 'obchodni-podminky' && targetId !== 'gdpr') {
+        const timer = setTimeout(() => {
+          document.getElementById(targetId)?.scrollIntoView({ behavior, block: 'start' });
+        }, 90);
+        return () => clearTimeout(timer);
+      }
+    }
+    window.scrollTo({ top: 0, behavior });
+  }, [location.pathname, location.hash]);
 
-  const scrollToLeadForm = () => {
+  const scrollToLeadForm = useCallback(() => {
     setTimeout(() => {
       const element =
         document.getElementById('poptavka') || document.getElementById('kontakt');
       if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        element.scrollIntoView({ behavior: getPreferredScrollBehavior(), block: 'start' });
       }
-    }, 60);
-  };
+    }, 80);
+  }, []);
 
-  const handleOpenLeadForm = (serviceId?: string) => {
-    if (serviceId) {
-      setPreselectedServiceId(serviceId);
-    }
-    if (activeSubpageService) {
-      setActiveSubpageService(null);
-      window.location.hash = '';
-    }
-    scrollToLeadForm();
-  };
+  const handleOpenLeadForm = useCallback(
+    (serviceId?: string) => {
+      if (serviceId) {
+        setPreselectedServiceId(serviceId);
+      }
+      if (location.pathname !== '/') {
+        navigate('/#poptavka');
+        return;
+      }
+      scrollToLeadForm();
+    },
+    [location.pathname, navigate, scrollToLeadForm]
+  );
 
   const handleSelectCaseStudyForLead = (serviceId: string, contextTitle: string) => {
     setPrefilledCalculation(null);
@@ -180,9 +432,9 @@ export default function App() {
       title: contextTitle,
       description: `Dobrý den, zaujala mě případová studie "${contextTitle}". Rád(a) bych poptal(a) podobnou realizaci v našem bytě/domě.`,
     });
-    if (activeSubpageService) {
-      setActiveSubpageService(null);
-      window.location.hash = '';
+    if (location.pathname !== '/') {
+      navigate('/#poptavka');
+      return;
     }
     scrollToLeadForm();
   };
@@ -196,9 +448,9 @@ export default function App() {
       title: materialSummary,
       description: `Dobrý den, ze srovnávače materiálů zvažuji variantu: ${materialSummary}. Prosím o konzultaci při zaměření na místě.`,
     });
-    if (activeSubpageService) {
-      setActiveSubpageService(null);
-      window.location.hash = '';
+    if (location.pathname !== '/') {
+      navigate('/#poptavka');
+      return;
     }
     scrollToLeadForm();
   };
@@ -212,20 +464,11 @@ export default function App() {
       title: articleTitle,
       description: `Dobrý den, přečetl(a) jsem si článek "${articleTitle}" a rád(a) bych toto řešení zkonzultoval(a) pro naši plánovanou rekonstrukci.`,
     });
-    if (activeSubpageService) {
-      setActiveSubpageService(null);
-      window.location.hash = '';
+    if (location.pathname !== '/') {
+      navigate('/#poptavka');
+      return;
     }
     scrollToLeadForm();
-  };
-
-  const handleSelectArticleSlug = (slug: string | null) => {
-    setActiveBlogSlug(slug);
-    if (slug) {
-      window.history.replaceState(null, '', `#blog/${slug}`);
-    } else if (window.location.hash.startsWith('#blog/')) {
-      window.history.replaceState(null, '', '#blog');
-    }
   };
 
   const handleChatNavigateToLeadForm = (serviceId?: string, prefillSummary?: string) => {
@@ -246,23 +489,11 @@ export default function App() {
         description: prefillSummary.trim(),
       });
     }
-    if (activeSubpageService) {
-      setActiveSubpageService(null);
-      window.location.hash = '';
+    if (location.pathname !== '/') {
+      navigate('/#poptavka');
+      return;
     }
     scrollToLeadForm();
-  };
-
-  const handleOpenServiceDetail = (service: ServiceItem) => {
-    setActiveSubpageService(service);
-    window.location.hash = `sluzba/${service.slug}`;
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleBackToHome = () => {
-    setActiveSubpageService(null);
-    window.location.hash = '';
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const unreadLeadsCount = leads.filter((l) => l.status === 'nova').length;
@@ -279,140 +510,218 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-grow">
-        {activeSubpageService ? (
-          /* Dedicated Service Subpage (Requirement 5) */
-          <ServiceDetailPage
-            service={activeSubpageService}
-            allServices={services}
-            onBack={handleBackToHome}
-            onOpenLeadForm={handleOpenLeadForm}
-            onSelectService={handleOpenServiceDetail}
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <>
+                <SeoHead
+                  title={
+                    settings.seoTitle ||
+                    'STAVPARTA – Rekonstrukce bytů a jader | Zábřeh na Moravě'
+                  }
+                  description={settings.seoDescription}
+                  canonicalPath="/"
+                  pageType="home"
+                  settings={settings}
+                  services={services}
+                  testimonials={testimonials}
+                />
+
+                {/* Hero Section */}
+                <Hero settings={settings} onOpenLeadForm={() => handleOpenLeadForm()} />
+
+                {/* O nás (About Us) */}
+                <AboutSection settings={settings} onOpenLeadForm={() => handleOpenLeadForm()} />
+
+                {/* Služby (Services Grid with subpage links) */}
+                <ServicesSection services={services} onSelectServiceForLead={handleOpenLeadForm} />
+
+                {/* Orientační kalkulačka rozpočtu rekonstrukce a jádra */}
+                <PriceCalculatorSection
+                  onApplyCalculation={(data) => {
+                    setPrefilledNote(null);
+                    setPrefilledCalculation(data);
+                    setPreselectedServiceId(data.serviceId);
+                  }}
+                />
+
+                {/* Realizace (Projects with Stage switcher & Before/After slider) */}
+                <ProjectsSection projects={projects} onOpenLeadForm={() => handleOpenLeadForm()} />
+
+                {/* Případové studie (Technical parameters, materials & engineering challenges) */}
+                <Suspense fallback={<SectionFallback label="Načítám případové studie…" />}>
+                  <CaseStudiesSection onSelectCaseStudyForLead={handleSelectCaseStudyForLead} />
+                </Suspense>
+
+                {/* Interaktivní srovnání materiálů pro konzultace */}
+                <Suspense fallback={<SectionFallback label="Načítám srovnávač materiálů…" />}>
+                  <MaterialComparisonSection onConsultMaterial={handleConsultMaterial} />
+                </Suspense>
+
+                {/* Blog & Aktuality */}
+                <Suspense fallback={<SectionFallback label="Načítám články a aktuality…" />}>
+                  <BlogSection posts={blogPosts} onConsultTopic={handleConsultBlogTopic} />
+                </Suspense>
+
+                {/* Často kladené dotazy (FAQ) */}
+                <FaqSection
+                  onOpenLeadForm={() => handleOpenLeadForm()}
+                  onOpenChat={() => setIsChatOpen(true)}
+                />
+
+                {/* Proč STAVPARTA */}
+                <WhyUsSection />
+
+                {/* Jak probíhá spolupráce */}
+                <ProcessSection onOpenLeadForm={() => handleOpenLeadForm()} />
+
+                {/* Reference se souhlasem */}
+                <TestimonialsSection testimonials={testimonials} />
+
+                {/* Interaktivní mapa působnosti v Olomouckém kraji */}
+                <Suspense fallback={<SectionFallback label="Načítám mapu působnosti…" />}>
+                  <ServiceAreaMapSection settings={settings} onOpenLeadForm={handleOpenLeadForm} />
+                </Suspense>
+
+                {/* Poptávkový formulář & Kontakty */}
+                <LeadFormSection
+                  settings={settings}
+                  services={services}
+                  preselectedServiceId={preselectedServiceId}
+                  prefilledData={prefilledCalculation}
+                  prefilledNote={prefilledNote}
+                  onOpenGdpr={() => setIsGdprOpen(true)}
+                  onOpenTerms={() => setIsTermsOpen(true)}
+                  onLeadCreated={(lead) => setLeads((prev) => [lead, ...prev])}
+                />
+              </>
+            }
           />
-        ) : (
-          /* Standard Full Landing Page */
-          <>
-            {/* Hero Section */}
-            <Hero
-              settings={settings}
-              onOpenLeadForm={() => handleOpenLeadForm()}
-            />
 
-            {/* O nás (About Us) */}
-            <AboutSection
-              settings={settings}
-              onOpenLeadForm={() => handleOpenLeadForm()}
-            />
+          <Route
+            path="/sluzba/:slug"
+            element={
+              <Suspense fallback={<SectionFallback label="Načítám detail služby…" />}>
+                <ServiceRouteView
+                  settings={settings}
+                  services={services}
+                  testimonials={testimonials}
+                  onOpenLeadForm={handleOpenLeadForm}
+                />
+              </Suspense>
+            }
+          />
 
-            {/* Služby (Services Grid with details and subpage links) */}
-            <ServicesSection
-              services={services}
-              onSelectServiceForLead={handleOpenLeadForm}
-              onOpenServiceDetail={handleOpenServiceDetail}
-            />
+          <Route
+            path="/blog/:slug"
+            element={
+              <Suspense fallback={<SectionFallback label="Načítám článek…" />}>
+                <BlogRouteView
+                  settings={settings}
+                  services={services}
+                  blogPosts={blogPosts}
+                  testimonials={testimonials}
+                  onConsultTopic={handleConsultBlogTopic}
+                  onOpenLeadForm={() => handleOpenLeadForm()}
+                />
+              </Suspense>
+            }
+          />
 
-            {/* Orientační kalkulačka rozpočtu rekonstrukce a jádra */}
-            <PriceCalculatorSection
-              onApplyCalculation={(data) => {
-                setPrefilledNote(null);
-                setPrefilledCalculation(data);
-                setPreselectedServiceId(data.serviceId);
-              }}
-            />
+          <Route
+            path="/lokalita/:citySlug"
+            element={
+              <Suspense fallback={<SectionFallback label="Načítám přehled lokality…" />}>
+                <CityRouteView
+                  settings={settings}
+                  services={services}
+                  testimonials={testimonials}
+                  onOpenLeadForm={handleOpenLeadForm}
+                />
+              </Suspense>
+            }
+          />
 
-            {/* Realizace (Projects with Stage switcher & Before/After slider) */}
-            <ProjectsSection
-              projects={projects}
-              onOpenLeadForm={() => handleOpenLeadForm()}
-            />
-
-            {/* Případové studie (Technical parameters, materials & engineering challenges) */}
-            <CaseStudiesSection
-              onSelectCaseStudyForLead={handleSelectCaseStudyForLead}
-            />
-
-            {/* Interaktivní srovnání materiálů pro konzultace */}
-            <MaterialComparisonSection
-              onConsultMaterial={handleConsultMaterial}
-            />
-
-            {/* Blog & Aktuality (Trendy v rekonstrukcích, údržba interiéru, materiály pro bytová jádra) */}
-            <BlogSection
-              posts={blogPosts}
-              activeArticleSlug={activeBlogSlug}
-              onSelectArticleSlug={handleSelectArticleSlug}
-              onConsultTopic={handleConsultBlogTopic}
-            />
-
-            {/* Často kladené dotazy (FAQ) */}
-            <FaqSection
-              onOpenLeadForm={() => handleOpenLeadForm()}
-              onOpenChat={() => setIsChatOpen(true)}
-            />
-
-            {/* Proč STAVPARTA (Why Us & craft principles) */}
-            <WhyUsSection />
-
-            {/* Jak probíhá spolupráce (4-step process) */}
-            <ProcessSection onOpenLeadForm={() => handleOpenLeadForm()} />
-
-            {/* Reference se souhlasem (Testimonials) */}
-            <TestimonialsSection testimonials={testimonials} />
-
-            {/* Interaktivní mapa působnosti v Olomouckém kraji */}
-            <ServiceAreaMapSection
-              settings={settings}
-              onOpenLeadForm={handleOpenLeadForm}
-            />
-
-            {/* Poptávkový formulář & Kontakty (Dynamic Lead form with prefilled calculations) */}
-            <LeadFormSection
-              settings={settings}
-              services={services}
-              preselectedServiceId={preselectedServiceId}
-              prefilledData={prefilledCalculation}
-              prefilledNote={prefilledNote}
-              onOpenGdpr={() => setIsGdprOpen(true)}
-              onLeadCreated={(lead) => setLeads((prev) => [lead, ...prev])}
-            />
-          </>
-        )}
+          <Route
+            path="*"
+            element={
+              <>
+                <SeoHead
+                  title="Stránka nenalezena | STAVPARTA"
+                  description="Požadovaná stránka nebyla nalezena."
+                  canonicalPath={location.pathname}
+                  pageType="not_found"
+                  noIndex
+                  settings={settings}
+                  services={services}
+                  testimonials={testimonials}
+                />
+                <Suspense fallback={<SectionFallback label="Načítám stránku…" />}>
+                  <NotFoundPage onOpenLeadForm={() => handleOpenLeadForm()} />
+                </Suspense>
+              </>
+            }
+          />
+        </Routes>
       </main>
 
       {/* Footer */}
       <Footer
         settings={settings}
+        services={services}
         onOpenLeadForm={() => handleOpenLeadForm()}
         onOpenAdmin={() => setIsAdminOpen(true)}
         onOpenGdpr={() => setIsGdprOpen(true)}
+        onOpenTerms={() => setIsTermsOpen(true)}
       />
 
-      {/* Admin Dashboard Modal */}
-      <AdminDashboard
-        isOpen={isAdminOpen}
-        onClose={() => setIsAdminOpen(false)}
-        settings={settings}
-        services={services}
-        projects={projects}
-        testimonials={testimonials}
-        leads={leads}
-        blogPosts={blogPosts}
-        onRefreshData={refreshData}
-      />
+      {/* Admin Dashboard Modal (loaded lazily only when opened) */}
+      {isAdminOpen && (
+        <Suspense fallback={null}>
+          <AdminDashboard
+            isOpen={isAdminOpen}
+            onClose={() => setIsAdminOpen(false)}
+            settings={settings}
+            services={services}
+            projects={projects}
+            testimonials={testimonials}
+            leads={leads}
+            blogPosts={blogPosts}
+            onRefreshData={refreshData}
+          />
+        </Suspense>
+      )}
 
       {/* GDPR & Privacy Modal */}
-      <GdprModal
-        settings={settings}
-        isOpen={isGdprOpen}
-        onClose={() => setIsGdprOpen(false)}
-      />
+      {isGdprOpen && (
+        <Suspense fallback={null}>
+          <GdprModal
+            settings={settings}
+            isOpen={isGdprOpen}
+            onClose={() => setIsGdprOpen(false)}
+          />
+        </Suspense>
+      )}
+
+      {/* Business & Warranty Terms Modal Template */}
+      {isTermsOpen && (
+        <Suspense fallback={null}>
+          <TermsModal
+            settings={settings}
+            isOpen={isTermsOpen}
+            onClose={() => setIsTermsOpen(false)}
+          />
+        </Suspense>
+      )}
 
       {/* Mobile Sticky CTA 'Poptat' */}
-      {!isAdminOpen && !isGdprOpen && !isChatOpen && (
+      {!isAdminOpen && !isGdprOpen && !isTermsOpen && !isChatOpen && (
         <button
           type="button"
           onClick={() => handleOpenLeadForm()}
           aria-label="Otevřít poptávkový formulář v sekci kontakt"
-          className="md:hidden fixed bottom-4 right-4 z-40 min-h-[48px] px-5 py-3 bg-[#F07818] hover:bg-[#d9660e] active:scale-95 text-white font-extrabold text-sm rounded-xl shadow-xl border border-white/20 flex items-center gap-2 cursor-pointer transition-transform"
+          className="md:hidden fixed bottom-4 right-4 z-40 min-h-[48px] px-5 py-3 bg-[#C2560A] hover:bg-[#9E4306] active:scale-95 text-white font-extrabold text-sm rounded-xl shadow-xl border border-white/20 flex items-center gap-2 cursor-pointer transition-transform"
         >
           <Send className="w-4 h-4 shrink-0" />
           <span>Poptat</span>
@@ -421,12 +730,10 @@ export default function App() {
 
       {/* Contextual Service Chatbot Widget */}
       <ChatWidget
-        settings={settings}
-        services={services}
         isOpen={isChatOpen}
         onToggle={setIsChatOpen}
         onNavigateToLeadForm={handleChatNavigateToLeadForm}
-        hidden={isAdminOpen || isGdprOpen}
+        hidden={isAdminOpen || isGdprOpen || isTermsOpen}
       />
     </div>
   );

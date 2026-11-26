@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Home,
   Layers,
@@ -10,15 +11,15 @@ import {
   ArrowRight,
   Info,
   Sparkles,
-  Star,
   ShieldCheck,
 } from 'lucide-react';
 import { ServiceItem } from '../types';
+import { ResponsiveImage } from './ResponsiveImage';
 
 interface ServicesSectionProps {
   services: ServiceItem[];
   onSelectServiceForLead: (serviceId: string) => void;
-  onOpenServiceDetail: (service: ServiceItem) => void;
+  onOpenServiceDetail?: (service: ServiceItem) => void;
 }
 
 export const ServicesSection: React.FC<ServicesSectionProps> = ({
@@ -93,7 +94,7 @@ export const ServicesSection: React.FC<ServicesSectionProps> = ({
       : activeServices.filter((s) => s.category === selectedCategory);
 
   const renderIcon = (name: string) => {
-    const props = { className: 'w-5 h-5 text-[#F07818]' };
+    const props = { className: 'w-5 h-5 text-[#B84F00]' };
     switch (name) {
       case 'Home':
         return <Home {...props} />;
@@ -119,7 +120,7 @@ export const ServicesSection: React.FC<ServicesSectionProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-8">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-12">
-          <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#F07818] mb-2">
+          <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#B84F00] mb-2">
             <span>Nabídka řemesel</span>
             <span className="text-slate-400">/</span>
             <span className="text-slate-600 font-medium">Olomoucký kraj</span>
@@ -161,27 +162,26 @@ export const ServicesSection: React.FC<ServicesSectionProps> = ({
                 key={service.id}
                 className={`bg-white rounded-xl border transition-all duration-200 overflow-hidden flex flex-col justify-between group ${
                   isTopPriority
-                    ? 'border-slate-300 shadow-sm hover:shadow-lg hover:border-[#F07818]/60 ring-1 ring-slate-200/60'
+                    ? 'border-slate-300 shadow-sm hover:shadow-lg hover:border-[#C2560A]/60 ring-1 ring-slate-200/60'
                     : 'border-slate-200 shadow-xs hover:shadow-md hover:border-slate-300'
                 }`}
               >
                 <div>
                   {/* Visual Image Header (Linkable to subpage) */}
-                  <a
-                    href={`#sluzba/${service.slug}`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      onOpenServiceDetail(service);
-                    }}
+                  <Link
+                    to={`/sluzba/${service.slug}`}
+                    onClick={() => onOpenServiceDetail?.(service)}
                     className="block relative aspect-16/10 bg-slate-900 overflow-hidden cursor-pointer"
                     title={`Detail služby: ${service.title}`}
                   >
                     {service.image ? (
-                      <img
+                      <ResponsiveImage
                         src={service.image}
                         alt={service.title}
+                        sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                        defaultWidth={1200}
+                        defaultHeight={896}
                         className="w-full h-full object-cover group-hover:scale-104 transition-transform duration-300"
-                        loading="lazy"
                       />
                     ) : (
                       <div className="w-full h-full bg-[#17232D] flex items-center justify-center text-slate-400">
@@ -206,25 +206,22 @@ export const ServicesSection: React.FC<ServicesSectionProps> = ({
                         {service.category}
                       </span>
                     </div>
-                  </a>
+                  </Link>
 
                   {/* Card Content */}
                   <div className="p-5 sm:p-6">
                     <div className="flex items-start gap-2.5 mb-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-[#F07818]/10 flex items-center justify-center shrink-0 mt-0.5">
+                      <div className="w-8 h-8 rounded-lg bg-[#C2560A]/10 flex items-center justify-center shrink-0 mt-0.5">
                         {renderIcon(service.iconName)}
                       </div>
                       <div>
-                        <a
-                          href={`#sluzba/${service.slug}`}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            onOpenServiceDetail(service);
-                          }}
-                          className="text-base sm:text-lg font-bold text-[#17232D] group-hover:text-[#F07818] transition-colors leading-snug cursor-pointer block"
+                        <Link
+                          to={`/sluzba/${service.slug}`}
+                          onClick={() => onOpenServiceDetail?.(service)}
+                          className="text-base sm:text-lg font-bold text-[#17232D] group-hover:text-[#B84F00] transition-colors leading-snug cursor-pointer block"
                         >
                           {service.title}
-                        </a>
+                        </Link>
                       </div>
                     </div>
 
@@ -234,10 +231,10 @@ export const ServicesSection: React.FC<ServicesSectionProps> = ({
 
                     {/* Key features checklist */}
                     {service.features && service.features.length > 0 && (
-                      <ul className="space-y-1.5 mb-2 text-[11px] text-slate-500 border-t border-slate-100 pt-3">
+                      <ul className="space-y-1.5 mb-2 text-[11px] text-slate-600 border-t border-slate-100 pt-3">
                         {service.features.slice(0, 3).map((feat, i) => (
                           <li key={i} className="flex items-start gap-1.5 line-clamp-1">
-                            <span className="text-[#F07818] font-bold shrink-0">✓</span>
+                            <span className="text-[#B84F00] font-bold shrink-0">✓</span>
                             <span>{feat}</span>
                           </li>
                         ))}
@@ -248,21 +245,18 @@ export const ServicesSection: React.FC<ServicesSectionProps> = ({
 
                 {/* Card Actions (Linkable & Popttat) */}
                 <div className="p-5 sm:p-6 pt-0 border-t border-slate-100 mt-2 flex items-center justify-between gap-3">
-                  <a
-                    href={`#sluzba/${service.slug}`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      onOpenServiceDetail(service);
-                    }}
+                  <Link
+                    to={`/sluzba/${service.slug}`}
+                    onClick={() => onOpenServiceDetail?.(service)}
                     className="text-xs font-bold text-slate-700 hover:text-[#17232D] flex items-center gap-1 cursor-pointer py-1.5"
                   >
-                    <Info className="w-3.5 h-3.5 text-slate-400" />
+                    <Info className="w-3.5 h-3.5 text-slate-500" />
                     <span>Více informací</span>
-                  </a>
+                  </Link>
 
                   <button
                     onClick={() => onSelectServiceForLead(service.id)}
-                    className="px-3.5 py-2 text-xs font-bold text-white bg-[#F07818] hover:bg-[#d9660e] rounded shadow-xs flex items-center gap-1 cursor-pointer transition-colors"
+                    className="px-3.5 py-2 text-xs font-bold text-white bg-[#C2560A] hover:bg-[#9E4306] rounded shadow-xs flex items-center gap-1 cursor-pointer transition-colors"
                   >
                     <span>Nezávazně poptat</span>
                     <ArrowRight className="w-3.5 h-3.5" />

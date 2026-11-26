@@ -90,7 +90,7 @@ export const ProcessSection: React.FC<ProcessSectionProps> = ({ onOpenLeadForm }
         <div className="mt-14 text-center">
           <button
             onClick={onOpenLeadForm}
-            className="inline-flex items-center gap-2 px-6 py-3.5 bg-[#F07818] hover:bg-[#d9660e] text-white font-bold text-sm rounded shadow-lg transition-all cursor-pointer"
+            className="inline-flex items-center gap-2 px-6 py-3.5 bg-[#C2560A] hover:bg-[#9E4306] text-white font-bold text-sm rounded shadow-lg transition-all cursor-pointer"
           >
             <span>Začněte 1. krokem – poptejte svou stavbu</span>
             <ArrowRight className="w-4 h-4" />

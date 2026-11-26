@@ -10,9 +10,12 @@ import {
   Wrench,
   AlertTriangle,
 } from 'lucide-react';
-import CORE_IMG from '../assets/images/service_apartment_core_renovation_1793401869790.jpg';
-import BATHROOM_TILES_IMG from '../assets/images/project_bathroom_tiles_1793401119494.jpg';
-import INTERIOR_IMG from '../assets/images/project_interior_renovation_1793401119488.jpg';
+import { ResponsiveImage } from './ResponsiveImage';
+import { IMAGE_PATHS } from '../shared/responsiveImages';
+
+const CORE_IMG = IMAGE_PATHS.APARTMENT_CORE;
+const BATHROOM_TILES_IMG = IMAGE_PATHS.BATHROOM_AFTER;
+const INTERIOR_IMG = IMAGE_PATHS.INTERIOR_AFTER;
 
 export interface CaseStudyTechParam {
   label: string;
@@ -76,7 +79,7 @@ const CASE_STUDIES: CaseStudyItem[] = [
       { label: 'Zdivo & příčky', value: 'Ytong Klasik 100 mm & 75 mm' },
       { label: 'Spádování sprchového koutu', value: '2,0 % do nerezového žlabu 850 mm' },
       { label: 'Odvoz a likvidace suti', value: '2,4 t (ekologická skládka)' },
-      { label: 'Záruka na provedené dílo', value: '36 měsíců + tlaková zkouška' },
+      { label: 'Záruka na provedené dílo', value: 'Dle smlouvy o dílo + tlaková zkouška' },
     ],
     materials: [
       { category: 'Zdivo & příčky', spec: 'Pórobeton Ytong Klasik 100 mm (nosná stěna pro sanitu) a 75 mm, pružná PU pěna u stropu' },
@@ -239,7 +242,7 @@ export const CaseStudiesSection: React.FC<CaseStudiesSectionProps> = ({
         {/* Section Header */}
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-10">
           <div className="max-w-3xl">
-            <div className="flex items-center gap-2 text-xs font-semibold text-[#F07818] mb-2">
+            <div className="flex items-center gap-2 text-xs font-semibold text-[#B84F00] mb-2">
               <ClipboardList className="w-4 h-4 shrink-0" />
               <span>Případové studie</span>
               <span aria-hidden="true" className="text-slate-400">·</span>
@@ -255,12 +258,14 @@ export const CaseStudiesSection: React.FC<CaseStudiesSectionProps> = ({
             </p>
           </div>
 
-          <div className="shrink-0 flex items-center gap-2 self-start lg:self-auto">
-            <span className="px-3 py-1.5 bg-amber-50 border border-amber-300 text-amber-900 text-xs font-bold rounded flex items-center gap-1.5">
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-              <span>Ukázkové studie: DEMO – NEPUBLIKOVAT</span>
-            </span>
-          </div>
+          {import.meta.env.VITE_DEMO_MODE === 'true' && (
+            <div className="shrink-0 flex items-center gap-2 self-start lg:self-auto">
+              <span className="px-3 py-1.5 bg-amber-50 border border-amber-300 text-amber-900 text-xs font-bold rounded flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span>Ukázkové studie: DEMO – NEPUBLIKOVAT</span>
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Interactive Case Study Selector Tabs */}
@@ -275,14 +280,14 @@ export const CaseStudiesSection: React.FC<CaseStudiesSectionProps> = ({
                 className={`text-left p-5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between gap-3 ${
                   isSelected
                     ? 'bg-[#17232D] text-white border-[#17232D] shadow-lg'
-                    : 'bg-white text-[#17232D] border-slate-200 hover:border-[#F07818]/60 hover:bg-slate-50/70'
+                    : 'bg-white text-[#17232D] border-slate-200 hover:border-[#C2560A]/60 hover:bg-slate-50/70'
                 }`}
               >
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2 text-xs">
                     <span
                       className={`font-bold ${
-                        isSelected ? 'text-[#F07818]' : 'text-[#F07818]'
+                        isSelected ? 'text-[#F07818]' : 'text-[#B84F00]'
                       }`}
                     >
                       {study.number}. {study.categoryLabel}
@@ -330,9 +335,12 @@ export const CaseStudiesSection: React.FC<CaseStudiesSectionProps> = ({
                 {/* Study Image with Resilient Fallback */}
                 <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-[#17232D] border border-slate-200">
                   {!imgErrors[activeStudy.id] ? (
-                    <img
+                    <ResponsiveImage
                       src={activeStudy.image}
                       alt={activeStudy.imageAlt}
+                      sizes="(max-width: 1024px) 100vw, 42vw"
+                      defaultWidth={1200}
+                      defaultHeight={896}
                       referrerPolicy="no-referrer"
                       onError={() =>
                         setImgErrors((prev) => ({ ...prev, [activeStudy.id]: true }))
@@ -359,7 +367,7 @@ export const CaseStudiesSection: React.FC<CaseStudiesSectionProps> = ({
                 {/* Technical Parameters Grid */}
                 <div>
                   <div className="flex items-center gap-2 text-xs font-extrabold text-[#17232D] mb-3">
-                    <Ruler className="w-4 h-4 text-[#F07818]" />
+                    <Ruler className="w-4 h-4 text-[#B84F00]" />
                     <span>Technické parametry zakázky</span>
                   </div>
                   <div className="divide-y divide-slate-200 border border-slate-200 rounded-xl bg-white overflow-hidden">
@@ -368,7 +376,7 @@ export const CaseStudiesSection: React.FC<CaseStudiesSectionProps> = ({
                         key={param.label}
                         className="px-3.5 py-2.5 flex items-center justify-between gap-3 text-xs"
                       >
-                        <span className="text-slate-500">{param.label}</span>
+                        <span className="text-slate-600">{param.label}</span>
                         <span className="font-bold text-[#17232D] text-right font-mono tabular-nums">
                           {param.value}
                         </span>
@@ -380,7 +388,7 @@ export const CaseStudiesSection: React.FC<CaseStudiesSectionProps> = ({
                 {/* Work Phases Timeline */}
                 <div>
                   <div className="flex items-center gap-2 text-xs font-extrabold text-[#17232D] mb-3">
-                    <Clock className="w-4 h-4 text-[#F07818]" />
+                    <Clock className="w-4 h-4 text-[#B84F00]" />
                     <span>Průběh realizace po dnech</span>
                   </div>
                   <div className="space-y-2.5">
@@ -391,7 +399,7 @@ export const CaseStudiesSection: React.FC<CaseStudiesSectionProps> = ({
                       >
                         <div className="flex items-center justify-between gap-2 mb-1">
                           <span className="font-bold text-[#17232D]">{phase.title}</span>
-                          <span className="font-mono tabular-nums font-bold text-[#F07818]">
+                          <span className="font-mono tabular-nums font-bold text-[#B84F00]">
                             {phase.days}
                           </span>
                         </div>
@@ -422,7 +430,7 @@ export const CaseStudiesSection: React.FC<CaseStudiesSectionProps> = ({
                 {/* Challenges & Engineering Solutions */}
                 <div>
                   <div className="flex items-center gap-2 text-sm font-extrabold text-[#17232D] mb-4">
-                    <Wrench className="w-4 h-4 text-[#F07818]" />
+                    <Wrench className="w-4 h-4 text-[#B84F00]" />
                     <span>Konkrétní výzvy na stavbě a jak jsme je vyřešili</span>
                   </div>
 
@@ -447,7 +455,7 @@ export const CaseStudiesSection: React.FC<CaseStudiesSectionProps> = ({
                 {/* Used Materials & Systems */}
                 <div>
                   <div className="flex items-center gap-2 text-sm font-extrabold text-[#17232D] mb-4">
-                    <Layers className="w-4 h-4 text-[#F07818]" />
+                    <Layers className="w-4 h-4 text-[#B84F00]" />
                     <span>Použité stavební materiály a systémy</span>
                   </div>
 
@@ -457,7 +465,7 @@ export const CaseStudiesSection: React.FC<CaseStudiesSectionProps> = ({
                         key={mat.category}
                         className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-1"
                       >
-                        <div className="text-[11px] font-bold text-[#F07818]">
+                        <div className="text-[11px] font-bold text-[#B84F00]">
                           {mat.category}
                         </div>
                         <div className="text-xs text-slate-700 leading-relaxed">
@@ -484,7 +492,7 @@ export const CaseStudiesSection: React.FC<CaseStudiesSectionProps> = ({
                   onClick={() =>
                     onSelectCaseStudyForLead(activeStudy.serviceId, activeStudy.title)
                   }
-                  className="px-5 py-3 bg-[#F07818] hover:bg-[#d9660e] text-white font-bold text-xs sm:text-sm rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap shrink-0"
+                  className="px-5 py-3 bg-[#C2560A] hover:bg-[#9E4306] text-white font-bold text-xs sm:text-sm rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap shrink-0"
                 >
                   <span>Poptat podobnou realizaci</span>
                   <ArrowRight className="w-4 h-4" />

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { INITIAL_SERVICES, INITIAL_SETTINGS } from '../services/db';
+import { INITIAL_SERVICES, INITIAL_SETTINGS } from '../shared/seedData';
 
 describe('STAVPARTA baseline sanity checks', () => {
   it('exposes headquarters in Zábřeh na Moravě', () => {

@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Project, ProjectStage } from '../types';
 import { MapPin, Calendar, Layers, Maximize2, AlertTriangle, ArrowRight, MoveHorizontal, Film } from 'lucide-react';
 import { BeforeAfterSlider } from './BeforeAfterSlider';
 import { SiteVideoPlayer } from './SiteVideoPlayer';
+import { ResponsiveImage } from './ResponsiveImage';
+import { IMAGE_PATHS } from '../shared/responsiveImages';
+import { useModalAccessibility } from '../hooks/useModalAccessibility';
 
-import BATHROOM_BEFORE from '../assets/images/project_bathroom_before_1793480824213.jpg';
-import BATHROOM_AFTER from '../assets/images/project_bathroom_tiles_1793401119494.jpg';
-import INTERIOR_BEFORE from '../assets/images/project_interior_before_1793480836173.jpg';
-import INTERIOR_AFTER from '../assets/images/project_interior_renovation_1793401119488.jpg';
+const BATHROOM_BEFORE = IMAGE_PATHS.BATHROOM_BEFORE;
+const BATHROOM_AFTER = IMAGE_PATHS.BATHROOM_AFTER;
+const INTERIOR_BEFORE = IMAGE_PATHS.INTERIOR_BEFORE;
+const INTERIOR_AFTER = IMAGE_PATHS.INTERIOR_AFTER;
 
 interface ProjectsSectionProps {
   projects: Project[];
@@ -20,6 +23,7 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({
   projects,
   onOpenLeadForm,
 }) => {
+  const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
   const publishedProjects = projects.filter((p) => p.status === 'published');
   const projectsWithVideos = publishedProjects.filter((p) => Boolean(p.video?.url));
 
@@ -36,6 +40,13 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({
     caption: string;
     title: string;
   } | null>(null);
+  const lightboxRef = useRef<HTMLDivElement>(null);
+
+  useModalAccessibility({
+    isOpen: Boolean(lightboxPhoto),
+    containerRef: lightboxRef,
+    onClose: () => setLightboxPhoto(null),
+  });
 
   const handleStageChange = (projectId: string, stage: CardViewMode) => {
     setActiveStages((prev) => ({ ...prev, [projectId]: stage }));
@@ -61,7 +72,7 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({
         {/* Section Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
           <div>
-            <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#F07818] mb-2">
+            <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#B84F00] mb-2">
               <span>Ukázky realizací</span>
               <span className="text-slate-300">/</span>
               <span className="text-slate-500 font-medium">Fotodokumentace & Časosběrná videa ze stavby</span>
@@ -76,19 +87,21 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({
             </p>
           </div>
 
-          <div className="shrink-0 flex items-center gap-2">
-            <span className="px-3 py-1.5 bg-amber-50 border border-amber-300 text-amber-900 text-xs font-bold rounded flex items-center gap-1.5">
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-              <span>Ukázky označeny: DEMO – NEPUBLIKOVAT</span>
-            </span>
-          </div>
+          {isDemoMode && (
+            <div className="shrink-0 flex items-center gap-2">
+              <span className="px-3 py-1.5 bg-amber-50 border border-amber-300 text-amber-900 text-xs font-bold rounded flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                <span>Ukázky označeny: DEMO – NEPUBLIKOVAT</span>
+              </span>
+            </div>
+          )}
         </div>
 
         {/* FEATURED 1: INTERACTIVE BEFORE / AFTER SLIDER SHOWCASE */}
         <div className="mb-10 p-6 sm:p-8 bg-[#F8FAFC] border border-slate-200 rounded-2xl shadow-sm space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#F07818] uppercase tracking-wider mb-1">
+              <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#B84F00] uppercase tracking-wider mb-1">
                 <MoveHorizontal className="w-3.5 h-3.5" />
                 <span>Interaktivní srovnávač</span>
               </div>
@@ -151,7 +164,7 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({
           <div className="mb-14 p-6 sm:p-8 bg-[#F8FAFC] border border-slate-200 rounded-2xl shadow-sm space-y-6">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div>
-                <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#F07818] uppercase tracking-wider mb-1">
+                <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#B84F00] uppercase tracking-wider mb-1">
                   <Film className="w-3.5 h-3.5" />
                   <span>Video ze staveniště</span>
                 </div>
@@ -196,7 +209,7 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({
               <div className="lg:col-span-4 bg-white border border-slate-200 rounded-xl p-5 space-y-4">
                 <div>
                   <div className="text-xs text-slate-500 flex items-center gap-1.5 mb-1">
-                    <span className="font-bold text-[#F07818]">
+                    <span className="font-bold text-[#B84F00]">
                       {activeShowcaseProject.serviceName}
                     </span>
                     <span>·</span>
@@ -232,7 +245,7 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({
                 <button
                   type="button"
                   onClick={onOpenLeadForm}
-                  className="w-full py-2.5 px-4 bg-[#F07818] hover:bg-[#d9660e] text-white text-xs font-bold rounded-lg shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full py-2.5 px-4 bg-[#C2560A] hover:bg-[#9E4306] text-white text-xs font-bold rounded-lg shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <span>Poptat podobnou realizaci</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -284,9 +297,12 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({
                     {isVideoMode && project.video ? (
                       <SiteVideoPlayer video={project.video} compact />
                     ) : currentPhoto ? (
-                      <img
+                      <ResponsiveImage
                         src={currentPhoto.url}
                         alt={currentPhoto.caption || project.title}
+                        sizes="(max-width: 1024px) 100vw, 50vw"
+                        defaultWidth={1200}
+                        defaultHeight={896}
                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-102"
                       />
                     ) : (
@@ -295,7 +311,7 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({
                       </div>
                     )}
 
-                    {project.isDemo && !isVideoMode && (
+                    {isDemoMode && project.isDemo && !isVideoMode && (
                       <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-xs text-amber-400 border border-amber-400/50 px-2 py-0.5 rounded text-[10px] font-extrabold tracking-wider">
                         DEMO – NEPUBLIKOVAT
                       </div>
@@ -303,6 +319,7 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({
 
                     {currentPhoto && !isVideoMode && (
                       <button
+                        type="button"
                         onClick={() =>
                           setLightboxPhoto({
                             url: currentPhoto.url,
@@ -310,8 +327,9 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({
                             title: project.title,
                           })
                         }
-                        className="absolute top-3 right-3 p-1.5 rounded bg-black/60 hover:bg-black/90 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                        className="absolute top-3 right-3 p-1.5 rounded bg-black/70 hover:bg-black/90 text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity cursor-pointer"
                         title="Zvětšit fotografii"
+                        aria-label={`Zvětšit fotografii: ${project.title}`}
                       >
                         <Maximize2 className="w-4 h-4" />
                       </button>
@@ -333,7 +351,7 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({
                             onClick={() => handleStageChange(project.id, stage)}
                             className={`flex-1 py-1 px-2 text-[11px] font-bold rounded transition-colors whitespace-nowrap cursor-pointer ${
                               currentStage === stage
-                                ? 'bg-[#F07818] text-white shadow-xs'
+                                ? 'bg-[#C2560A] text-white shadow-xs'
                                 : exists
                                 ? 'text-slate-300 hover:text-white hover:bg-white/10'
                                 : 'text-slate-600 opacity-40 cursor-not-allowed'
@@ -349,7 +367,7 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({
                           onClick={() => handleStageChange(project.id, 'video')}
                           className={`flex-1 py-1 px-2 text-[11px] font-bold rounded transition-colors whitespace-nowrap flex items-center justify-center gap-1 cursor-pointer ${
                             isVideoMode
-                              ? 'bg-[#F07818] text-white shadow-xs'
+                              ? 'bg-[#C2560A] text-white shadow-xs'
                               : 'text-orange-300 hover:text-white hover:bg-white/10'
                           }`}
                         >
@@ -362,16 +380,16 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({
 
                   {/* Caption Strip */}
                   {isVideoMode && project.video ? (
-                    <div className="bg-slate-800 text-slate-300 text-[11px] px-4 py-2 flex items-center gap-1.5 border-b border-slate-700">
-                      <span className="text-[#F07818] font-bold shrink-0">
+                    <div className="bg-slate-800 text-slate-200 text-[11px] px-4 py-2 flex items-center gap-1.5 border-b border-slate-700">
+                      <span className="text-[#FF9642] font-bold shrink-0">
                         Časosběr ({project.video.durationLabel}):
                       </span>
                       <span className="truncate">{project.video.summary}</span>
                     </div>
                   ) : (
                     currentPhoto && (
-                      <div className="bg-slate-800 text-slate-300 text-[11px] px-4 py-2 flex items-center gap-1.5 border-b border-slate-700">
-                        <span className="text-[#F07818] font-bold shrink-0">
+                      <div className="bg-slate-800 text-slate-200 text-[11px] px-4 py-2 flex items-center gap-1.5 border-b border-slate-700">
+                        <span className="text-[#FF9642] font-bold shrink-0">
                           {currentPhoto.stageLabel}:
                         </span>
                         <span className="truncate">{currentPhoto.caption}</span>
@@ -383,7 +401,7 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({
                   <div className="p-6">
                     <div className="flex items-center gap-3 text-xs text-slate-500 mb-2">
                       <span className="flex items-center gap-1 font-medium text-[#17232D]">
-                        <Layers className="w-3.5 h-3.5 text-[#F07818]" />
+                        <Layers className="w-3.5 h-3.5 text-[#B84F00]" />
                         {project.serviceName}
                       </span>
                       <span>·</span>
@@ -417,8 +435,9 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({
                     Plánujete podobnou rekonstrukci?
                   </span>
                   <button
+                    type="button"
                     onClick={onOpenLeadForm}
-                    className="text-xs font-bold text-[#F07818] hover:text-[#d9660e] flex items-center gap-1 cursor-pointer"
+                    className="text-xs font-bold text-[#B84F00] hover:text-[#9E4306] flex items-center gap-1 cursor-pointer"
                   >
                     <span>Nezávazná poptávka</span>
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -437,24 +456,36 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({
           onClick={() => setLightboxPhoto(null)}
         >
           <div
-            className="max-w-4xl w-full bg-slate-900 rounded-xl overflow-hidden shadow-2xl border border-slate-800"
+            ref={lightboxRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="lightbox-photo-title"
+            tabIndex={-1}
+            className="max-w-4xl w-full bg-slate-900 rounded-xl overflow-hidden shadow-2xl border border-slate-800 cursor-default outline-none"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="relative aspect-16/10 bg-black">
-              <img
+              <ResponsiveImage
                 src={lightboxPhoto.url}
                 alt={lightboxPhoto.caption}
+                sizes="(max-width: 1024px) 100vw, 896px"
+                defaultWidth={1200}
+                defaultHeight={896}
                 className="w-full h-full object-contain"
               />
             </div>
-            <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
+            <div className="p-4 bg-slate-900 text-white flex items-center justify-between gap-4">
               <div>
-                <h4 className="font-bold text-sm text-white">{lightboxPhoto.title}</h4>
-                <p className="text-xs text-slate-400 mt-0.5">{lightboxPhoto.caption}</p>
+                <h4 id="lightbox-photo-title" className="font-bold text-sm text-white">
+                  {lightboxPhoto.title}
+                </h4>
+                <p className="text-xs text-slate-300 mt-0.5">{lightboxPhoto.caption}</p>
               </div>
               <button
+                type="button"
                 onClick={() => setLightboxPhoto(null)}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded text-white"
+                aria-label="Zavřít náhled fotografie"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded text-white cursor-pointer shrink-0"
               >
                 Zavřít
               </button>

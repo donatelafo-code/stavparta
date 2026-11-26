@@ -1,10 +1,22 @@
+import fs from 'node:fs';
 import express, { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
+import multer from 'multer';
 import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
 import { PublicAdminUser, ServerDatabase } from './db';
 import { dispatchNewLeadNotifications } from './notifications';
+import {
+  inspectMagicBytes,
+  isDeclaredMimeCompatible,
+  MAX_ATTACHMENT_BYTES,
+  MAX_ATTACHMENT_COUNT,
+  removeStoredAttachmentFile,
+  resolveSafeUploadPath,
+  saveValidatedAttachment,
+  StoredAttachmentRecord,
+} from './uploads';
 import {
   addLeadNoteSchema,
   adminChangePasswordSchema,
@@ -14,9 +26,18 @@ import {
   createLeadPayloadSchema,
   extractZodFieldErrors,
   fullDatabaseDumpSchema,
+  gdprEraseSchema,
   newsletterSubscribeSchema,
   updateLeadStatusSchema,
 } from '../src/shared/schemas';
+import {
+  buildServerSystemInstruction,
+  hashVisitorIdentifier,
+  isSuspiciousPromptInjection,
+  sanitizeChatText,
+  validateAndSanitizeChatModelOutput,
+} from './chatSecurity';
+import { CITY_PAGES } from '../src/shared/cityPages';
 
 const ADMIN_SESSION_COOKIE = 'stavparta_admin_session';
 
@@ -25,30 +46,21 @@ interface AuthenticatedRequest extends Request {
   adminSessionToken?: string;
 }
 
-interface AppServiceContext {
-  id: string;
-  title: string;
-  category: string;
-  shortDescription: string;
-  features: string[];
-}
-
-interface AppContextPayload {
-  companyName?: string;
-  headquarters?: string;
-  operatingRegion?: string;
-  primaryLocations?: string[];
-  phone?: string;
-  email?: string;
-  workingHours?: string;
-  services?: AppServiceContext[];
-}
-
 export interface CreateServerAppOptions {
   db?: ServerDatabase;
   disableRateLimit?: boolean;
   nowFn?: () => number;
   initialAdminPassword?: string;
+  chatDailyIpLimit?: number;
+  chatDailyGlobalLimit?: number;
+  geminiModel?: string;
+  appUrl?: string;
+  trustProxy?: boolean | number | string;
+  generateChatReply?: (params: {
+    model: string;
+    systemInstruction: string;
+    contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>;
+  }) => Promise<string>;
 }
 
 const getAiClient = () => {
@@ -142,57 +154,42 @@ const verifyCsrf = (req: Request, res: Response, next: NextFunction): void => {
   });
 };
 
-const buildSystemInstruction = (appContext?: AppContextPayload): string => {
-  const company = appContext?.companyName || 'STAVPARTA – Stavební práce a rekonstrukce';
-  const headquarters = appContext?.headquarters || 'Zábřeh na Moravě (PSČ 789 01)';
-  const region = appContext?.operatingRegion || 'Olomoucký kraj';
-  const locations =
-    appContext?.primaryLocations?.join(', ') ||
-    'Zábřeh na Moravě, Šumperk, Mohelnice, Olomouc, Litovel, Prostějov, Přerov, Šternberk';
-  const phone = appContext?.phone || '';
-  const email = appContext?.email || 'poptavky@stavparta.cz';
-  const hours = appContext?.workingHours || 'Po–Pá: 7:00 – 17:00';
+const parseTrustProxy = (raw?: boolean | number | string): boolean | number | string => {
+  if (typeof raw === 'boolean' || typeof raw === 'number') {
+    return raw;
+  }
+  const normalized = (raw ?? process.env.TRUST_PROXY ?? '').trim().toLowerCase();
+  if (!normalized) {
+    return 1;
+  }
+  if (normalized === 'true') return true;
+  if (normalized === 'false') return false;
+  if (/^\d+$/.test(normalized)) {
+    return Number.parseInt(normalized, 10);
+  }
+  return normalized;
+};
 
-  const servicesText =
-    appContext?.services && appContext.services.length > 0
-      ? appContext.services
-          .map(
-            (s) =>
-              `- [${s.id}] ${s.title} (${s.category}): ${s.shortDescription} | Hlavní body: ${s.features.slice(0, 4).join('; ')}`
-          )
-          .join('\n')
-      : `- [srv-rekonstrukce-bytu] Rekonstrukce bytů a domů
-- [srv-bytova-jadra] Kompletní renovace bytových jader
-- [srv-zednicke-prace] Zednické a stavební práce
-- [srv-sadrokartony] Sádrokartony a konstrukce
-- [srv-obklady-dlazby] Obklady, dlažby a podlahy
-- [srv-dokoncovaci-prace] Další dokončovací práce`;
+const parseAllowedOrigins = (explicitAppUrl?: string): Set<string> => {
+  const origins = new Set<string>();
+  const rawCandidates = [
+    explicitAppUrl ?? process.env.APP_URL ?? '',
+    ...(process.env.ALLOWED_ORIGINS || '').split(','),
+  ];
 
-  return `Jsi přátelský, věcný a odborný kontextový asistent stavební party ${company}.
-Odpovídej VÝHRADNĚ v českém jazyce, stručně a srozumitelně (ideálně 2–5 vět nebo přehledné odrážky).
-
-ZÁKLADNÍ FAKTA Z WEBU:
-- Sídlo / centrála: ${headquarters}
-- Působnost: ${region} (${locations})
-- Kontakt: ${phone ? `Telefon: ${phone} | ` : ''}E-mail: ${email} | Pracovní doba: ${hours}
-- První zaměření na místě a položkový rozpočet (rozpadnutý na materiál a práci) jsou v celém Olomouckém kraji zdarma a nezávazně.
-- Záruka na provedené stavební dílo je 36 měsíců na základě písemné smlouvy o dílo.
-- Platební podmínky: bez placení celé částky předem; platba probhá po etapách (záloha na materiál při zahájení cca 30–40 %, průběžná platba po hrubých rozvodech, doplatek po předání s protokolem).
-- Legislativa & SVJ: při běžné renovaci bytového jádra bez zásahu do nosných stěn není potřeba stavební povolení, je však nutné oznámit práce výboru SVJ / bytovému družstvu.
-
-ORIENTAČNÍ CENY A DOBY Z KALKULAČKY NA WEBU (vždy zdůrazni, že jde o orientační odhad před zaměřením):
-- Kompletní renovace bytového jádra: 10–15 pracovních dní, orientačně cca 105 000 – 165 000 Kč dle velikosti, sanity a volby obkladů.
-- Celková rekonstrukce bytu na klíč: 1+kk cca 140–210 tis. Kč (14–21 dní), 2+kk cca 260–390 tis. Kč (3–4 týdny), 3+kk/3+1 cca 380–540 tis. Kč (4–6 týdnů), 4+kk cca 490–720 tis. Kč (6–8 týdnů).
-- Orientační ceny materiálů (vč. práce): lepený vinyl LVT 1 150–1 550 Kč/m², SPC vinyl 1 250–1 680 Kč/m², keramická dlažba 1 450–2 200 Kč/m², laminát AC5 790–1 150 Kč/m², velkoformát 60×120+ cm 2 100–2 950 Kč/m², Ytong příčky 1 450–1 950 Kč/m², akustický SDK 1 350–1 850 Kč/m².
-- Na webu najdou klienti také sekci Realizace s krátkými časosběrnými videi přímo ze stavby a sekci Blog & Aktuality (trendy v rekonstrukcích, tipy na údržbu interiéru a průvodce výběrem materiálů pro bytová jádra – Ytong vs. sádrokarton, hydroizolace).
-
-NABÍZENÉ SLUŽBY NA WEBU:
-${servicesText}
-
-PRAVIDLA ODPOVĚDI:
-1. Vycházej výhradně z výše uvedených informací o službách STAVPARTA. Nevymýšlej služby ani lokality mimo Olomoucký kraj, které parta nedělá. Pokud se uživatel ptá na řemeslo či práci mimo výše uvedených služeb, zdvořile uveď, že tyto práce nezajišťujeme, a nabídni naše stavební, zednické, sádrokartonářské, obkladačské a rekonstrukční služby.
-2. Pokud se uživatel ptá na konkrétní zakázku ve svém bytě/domě, poptávku, termín, přesnou cenu nebo zaměření, nastav "suggestLeadForm": true a uveď nejvhodnější "suggestedServiceId" z výše uvedených ID (např. "srv-bytova-jadra", "srv-rekonstrukce-bytu", "srv-obklady-dlazby", "srv-sadrokartony" nebo "srv-zednicke-prace").
-3. Do "suggestedPrefillSummary" vlož krátké 1věté shrnutí uživatelova záměru v češtině (prázdný řetězec, pokud suggestLeadForm je false).`;
+  for (const candidate of rawCandidates) {
+    const trimmed = candidate.trim();
+    if (!trimmed || trimmed === 'MY_APP_URL') continue;
+    try {
+      const parsed = new URL(trimmed);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        origins.add(parsed.origin);
+      }
+    } catch {
+      // Ignore malformed origin entries
+    }
+  }
+  return origins;
 };
 
 export function createServerApp(options: CreateServerAppOptions = {}) {
@@ -205,15 +202,70 @@ export function createServerApp(options: CreateServerAppOptions = {}) {
   const now = options.nowFn ?? (() => Date.now());
   const app = express();
 
-  app.set('trust proxy', 1);
+  app.set('trust proxy', parseTrustProxy(options.trustProxy));
 
   app.use(
     helmet({
       frameguard: false,
       contentSecurityPolicy: false,
       crossOriginEmbedderPolicy: false,
+      crossOriginResourcePolicy: { policy: 'same-origin' },
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+      dnsPrefetchControl: { allow: false },
+      xContentTypeOptions: true,
+      hsts: process.env.NODE_ENV === 'production',
     })
   );
+
+  app.use((_req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)');
+    next();
+  });
+
+  const configuredAllowedOrigins = parseAllowedOrigins(options.appUrl);
+
+  app.use('/api', (req: Request, res: Response, next: NextFunction) => {
+    const originHeader = req.headers.origin;
+    if (typeof originHeader === 'string' && originHeader.trim().length > 0) {
+      let normalizedOrigin: string;
+      try {
+        normalizedOrigin = new URL(originHeader).origin;
+      } catch {
+        res.status(403).json({ error: 'Neplatná hlavička Origin.' });
+        return;
+      }
+
+      const forwardedHost = String(req.headers['x-forwarded-host'] || req.headers.host || '')
+        .split(',')[0]
+        .trim();
+      const proto = isHttpsRequest(req) ? 'https' : req.protocol || 'http';
+      const sameServerOrigin = forwardedHost ? `${proto}://${forwardedHost}` : '';
+
+      const isAllowed =
+        configuredAllowedOrigins.has(normalizedOrigin) ||
+        (sameServerOrigin !== '' && normalizedOrigin === sameServerOrigin);
+
+      if (!isAllowed) {
+        res.status(403).json({ error: 'Přístup z nepovolené domény (CORS).' });
+        return;
+      }
+
+      res.setHeader('Access-Control-Allow-Origin', normalizedOrigin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
+      res.setHeader(
+        'Access-Control-Allow-Headers',
+        'Content-Type, X-Requested-With'
+      );
+
+      if (req.method === 'OPTIONS') {
+        res.status(204).end();
+        return;
+      }
+    }
+    next();
+  });
 
   app.use(cookieParser());
   app.use(express.json({ limit: '1mb' }));
@@ -303,55 +355,167 @@ export function createServerApp(options: CreateServerAppOptions = {}) {
     res.json(db.getPublicBootstrap());
   });
 
-  // Public Lead Submission
-  app.post('/api/leads', leadsLimiter, async (req: Request, res: Response) => {
-    const raw = (req.body || {}) as Record<string, unknown>;
-
-    if (typeof raw.honeypot === 'string' && raw.honeypot.trim().length > 0) {
-      res.status(400).json({ error: 'Neplatné odeslání formuláře.' });
-      return;
-    }
-
-    if (typeof raw.formLoadedAt === 'number' && now() - raw.formLoadedAt < 1200) {
-      res.status(400).json({
-        error: 'Formulář byl odeslán příliš rychle. Počkejte prosím vteřinu a zkuste to znovu.',
-        fieldErrors: {
-          submit:
-            'Formulář byl odeslán příliš rychle. Počkejte prosím vteřinu a zkuste to znovu.',
-        },
-      });
-      return;
-    }
-
-    const parsed = createLeadPayloadSchema.safeParse(raw);
-    if (!parsed.success) {
-      const fieldErrors = extractZodFieldErrors(parsed.error);
-      const firstError = Object.values(fieldErrors)[0] || 'Zkontrolujte prosím vyplněná pole.';
-      res.status(400).json({
-        error: firstError,
-        fieldErrors,
-      });
-      return;
-    }
-
-    try {
-      const lead = db.createLead(parsed.data);
-      const notificationResult = await dispatchNewLeadNotifications(lead, db.getSettings());
-      res.status(201).json({
-        lead,
-        notifications: {
-          ownerEmailSent: notificationResult.ownerEmailSent,
-          customerEmailSent: notificationResult.customerEmailSent,
-          telegramSent: notificationResult.telegramSent,
-        },
-      });
-    } catch (err) {
-      console.error('Failed to persist lead:', err);
-      res.status(500).json({
-        error: 'Nepodařilo se uložit poptávku na serveru. Zkuste to prosím znovu.',
-      });
-    }
+  const uploadMiddleware = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: MAX_ATTACHMENT_BYTES,
+      files: MAX_ATTACHMENT_COUNT,
+    },
   });
+
+  const handleOptionalLeadAttachments = (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): void => {
+    if (!req.is('multipart/form-data')) {
+      next();
+      return;
+    }
+
+    uploadMiddleware.array('attachments', MAX_ATTACHMENT_COUNT)(req, res, (err: unknown) => {
+      if (!err) {
+        next();
+        return;
+      }
+
+      if (err instanceof multer.MulterError) {
+        let message = 'Chyba při nahrávání příloh.';
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          message = 'Každý přiložený soubor může mít maximálně 5 MB.';
+        } else if (err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE') {
+          message = 'Můžete přiložit maximálně 5 souborů.';
+        }
+        res.status(400).json({
+          error: message,
+          fieldErrors: { attachments: message },
+        });
+        return;
+      }
+
+      res.status(400).json({
+        error: 'Nepodařilo se zpracovat přiložené soubory.',
+        fieldErrors: { attachments: 'Nepodařilo se zpracovat přiložené soubory.' },
+      });
+    });
+  };
+
+  // Public Lead Submission (supports application/json or multipart/form-data with attachments)
+  app.post(
+    '/api/leads',
+    leadsLimiter,
+    handleOptionalLeadAttachments,
+    async (req: Request, res: Response) => {
+      let raw: Record<string, unknown>;
+      if (req.is('multipart/form-data') && typeof req.body?.payload === 'string') {
+        try {
+          const decoded = JSON.parse(req.body.payload) as unknown;
+          if (!decoded || typeof decoded !== 'object' || Array.isArray(decoded)) {
+            res.status(400).json({ error: 'Neplatný formát odeslaných dat poptávky.' });
+            return;
+          }
+          raw = decoded as Record<string, unknown>;
+        } catch {
+          res.status(400).json({ error: 'Neplatný formát odeslaných dat poptávky.' });
+          return;
+        }
+      } else {
+        raw = (req.body || {}) as Record<string, unknown>;
+      }
+
+      if (typeof raw.honeypot === 'string' && raw.honeypot.trim().length > 0) {
+        res.status(400).json({ error: 'Neplatné odeslání formuláře.' });
+        return;
+      }
+
+      if (typeof raw.formLoadedAt === 'number' && now() - raw.formLoadedAt < 1200) {
+        res.status(400).json({
+          error: 'Formulář byl odeslán příliš rychle. Počkejte prosím vteřinu a zkuste to znovu.',
+          fieldErrors: {
+            submit:
+              'Formulář byl odeslán příliš rychle. Počkejte prosím vteřinu a zkuste to znovu.',
+          },
+        });
+        return;
+      }
+
+      const parsed = createLeadPayloadSchema.safeParse(raw);
+      if (!parsed.success) {
+        const fieldErrors = extractZodFieldErrors(parsed.error);
+        const firstError = Object.values(fieldErrors)[0] || 'Zkontrolujte prosím vyplněná pole.';
+        res.status(400).json({
+          error: firstError,
+          fieldErrors,
+        });
+        return;
+      }
+
+      const uploadedFiles =
+        (req as Request & { files?: Express.Multer.File[] }).files ?? [];
+
+      if (uploadedFiles.length > MAX_ATTACHMENT_COUNT) {
+        const msg = 'Můžete přiložit maximálně 5 souborů.';
+        res.status(400).json({ error: msg, fieldErrors: { attachments: msg } });
+        return;
+      }
+
+      const validatedFiles: Array<{
+        file: Express.Multer.File;
+        detected: NonNullable<ReturnType<typeof inspectMagicBytes>>;
+      }> = [];
+
+      for (const file of uploadedFiles) {
+        if (file.size > MAX_ATTACHMENT_BYTES) {
+          const msg = 'Každý přiložený soubor může mít maximálně 5 MB.';
+          res.status(400).json({ error: msg, fieldErrors: { attachments: msg } });
+          return;
+        }
+
+        const detected = inspectMagicBytes(file.buffer);
+        if (!detected || !isDeclaredMimeCompatible(file.mimetype, detected.mime)) {
+          const msg =
+            'Nepodporovaný nebo neplatný obsah souboru. Povoleny jsou pouze platné soubory JPG, PNG, WebP nebo PDF.';
+          res.status(400).json({ error: msg, fieldErrors: { attachments: msg } });
+          return;
+        }
+
+        validatedFiles.push({ file, detected });
+      }
+
+      const savedAttachments: StoredAttachmentRecord[] = [];
+      try {
+        for (const item of validatedFiles) {
+          savedAttachments.push(
+            saveValidatedAttachment(
+              db.getUploadDir(),
+              item.file.buffer,
+              item.file.originalname,
+              item.detected
+            )
+          );
+        }
+
+        const lead = db.createLead(parsed.data, savedAttachments);
+        const notificationResult = await dispatchNewLeadNotifications(lead, db.getSettings());
+        res.status(201).json({
+          lead,
+          notifications: {
+            ownerEmailSent: notificationResult.ownerEmailSent,
+            customerEmailSent: notificationResult.customerEmailSent,
+            telegramSent: notificationResult.telegramSent,
+          },
+        });
+      } catch (err) {
+        for (const saved of savedAttachments) {
+          removeStoredAttachmentFile(db.getUploadDir(), saved.storedName);
+        }
+        console.error('Failed to persist lead:', err);
+        res.status(500).json({
+          error: 'Nepodařilo se uložit poptávku na serveru. Zkuste to prosím znovu.',
+        });
+      }
+    }
+  );
 
   // Public Newsletter Subscription
   app.post('/api/newsletter', newsletterLimiter, (req: Request, res: Response) => {
@@ -556,6 +720,36 @@ export function createServerApp(options: CreateServerAppOptions = {}) {
     res.json({ ok: true });
   });
 
+  adminRouter.get('/attachments/:id', (req: Request, res: Response) => {
+    const attachment = db.getAttachmentById(String(req.params.id));
+    if (!attachment) {
+      res.status(404).json({ error: 'Příloha nebyla nalezena.' });
+      return;
+    }
+    const filePath = resolveSafeUploadPath(db.getUploadDir(), attachment.storedName);
+    if (!filePath || !fs.existsSync(filePath)) {
+      res.status(404).json({ error: 'Soubor přílohy nebyl nalezen na disku.' });
+      return;
+    }
+
+    const isInlineImage = attachment.mimeType.startsWith('image/');
+    const dispositionType =
+      isInlineImage && req.query.download !== '1' ? 'inline' : 'attachment';
+    const asciiFallback = attachment.originalName
+      .replace(/[^\x20-\x7E]/g, '_')
+      .replace(/["\\]/g, '_');
+    const encodedName = encodeURIComponent(attachment.originalName);
+
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('Content-Type', attachment.mimeType);
+    res.setHeader(
+      'Content-Disposition',
+      `${dispositionType}; filename="${asciiFallback}"; filename*=UTF-8''${encodedName}`
+    );
+    res.sendFile(filePath);
+  });
+
   adminRouter.get('/newsletter', (_req: Request, res: Response) => {
     res.json({ subscribers: db.listSubscribers() });
   });
@@ -569,13 +763,45 @@ export function createServerApp(options: CreateServerAppOptions = {}) {
     res.json({ ok: true });
   });
 
+  adminRouter.post('/gdpr/erase', (req: Request, res: Response) => {
+    const parsed = gdprEraseSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        error: parsed.error.issues[0]?.message || 'Zadejte prosím platnou e-mailovou adresu.',
+      });
+      return;
+    }
+    const result = db.erasePersonalDataByEmail(parsed.data.email);
+    res.json({
+      ok: true,
+      ...result,
+    });
+  });
+
   adminRouter.patch('/settings', (req: Request, res: Response) => {
     const body = req.body;
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
       res.status(400).json({ error: 'Neplatný formát nastavení.' });
       return;
     }
-    const updated = db.updateSettings(body);
+
+    const requiredLabels: Record<string, string> = {
+      phone: 'Telefonní číslo firmy',
+      email: 'Kontaktní e-mail',
+      ico: 'IČO',
+      dic: 'DIČ (nebo uveďte „neplátce DPH“)',
+      addressNotice: 'Sídlo a adresa centrály',
+    };
+
+    const record = body as Record<string, unknown>;
+    for (const [key, label] of Object.entries(requiredLabels)) {
+      if (key in record && (typeof record[key] !== 'string' || record[key].trim().length === 0)) {
+        res.status(400).json({ error: `Povinné pole nemůže být prázdné: ${label}.` });
+        return;
+      }
+    }
+
+    const updated = db.updateSettings(record);
     res.json({ settings: updated });
   });
 
@@ -672,12 +898,8 @@ export function createServerApp(options: CreateServerAppOptions = {}) {
   });
 
   adminRouter.post('/maintenance/clear-demo', (_req: Request, res: Response) => {
-    const settings = db.clearDemoForProduction();
-    res.json({
-      settings,
-      projects: db.listProjects(),
-      testimonials: db.listTestimonials(),
-    });
+    const result = db.clearDemoForProduction();
+    res.json(result);
   });
 
   adminRouter.post('/maintenance/reset-demo', (_req: Request, res: Response) => {
@@ -700,7 +922,33 @@ export function createServerApp(options: CreateServerAppOptions = {}) {
     });
   });
 
+  adminRouter.get('/chat-logs', (req: Request, res: Response) => {
+    const rawLimit = Number(req.query.limit ?? 100);
+    const limit = Number.isFinite(rawLimit) ? rawLimit : 100;
+    res.json({ logs: db.listChatLogs(limit) });
+  });
+
+  adminRouter.delete('/chat-logs/:id', (req: Request, res: Response) => {
+    const deleted = db.deleteChatLog(String(req.params.id));
+    if (!deleted) {
+      res.status(404).json({ error: 'Záznam konverzace nebyl nalezen.' });
+      return;
+    }
+    res.json({ ok: true });
+  });
+
   app.use('/api/admin', adminRouter);
+
+  const ipDailyLimit = Math.max(
+    1,
+    options.chatDailyIpLimit ?? (Number(process.env.CHAT_DAILY_IP_LIMIT) || 40)
+  );
+  const globalDailyLimit = Math.max(
+    1,
+    options.chatDailyGlobalLimit ?? (Number(process.env.CHAT_DAILY_LIMIT) || 300)
+  );
+  const resolvedChatModel =
+    options.geminiModel?.trim() || process.env.GEMINI_MODEL?.trim() || 'gemini-4-hydrogen';
 
   // Contextual Chat API
   app.post('/api/chat', chatLimiter, async (req: Request, res: Response) => {
@@ -711,8 +959,73 @@ export function createServerApp(options: CreateServerAppOptions = {}) {
       return;
     }
 
-    const ai = getAiClient();
-    if (!ai) {
+    const sanitizedMessages = parsedChat.data.messages
+      .slice(-10)
+      .map((m) => ({
+        role: m.role,
+        text: sanitizeChatText(m.text, 600),
+      }))
+      .filter((m) => m.text.length > 0);
+
+    const lastMessage = sanitizedMessages[sanitizedMessages.length - 1];
+    if (!lastMessage || lastMessage.role !== 'user') {
+      res.status(400).json({ error: 'Poslední zpráva v konverzaci musí být dotaz uživatele.' });
+      return;
+    }
+
+    const dayKey = new Date(now()).toISOString().slice(0, 10);
+    const sessionHash = hashVisitorIdentifier(
+      req.ip || req.socket.remoteAddress || 'unknown',
+      dayKey,
+      process.env.SESSION_SECRET || ''
+    );
+
+    if (sanitizedMessages.some((m) => m.role === 'user' && isSuspiciousPromptInjection(m.text))) {
+      db.addChatLog({
+        sessionHash,
+        userMessage: lastMessage.text,
+        assistantReply: '[Blokováno bezpečnostním filtrem]',
+        suggestLeadForm: false,
+        suggestedServiceId: '',
+        model: resolvedChatModel,
+        status: 'rejected',
+      });
+      res.status(400).json({
+        error:
+          'Dotaz obsahuje nepovolené instrukce. Zeptejte se prosím běžným způsobem na naše stavební služby nebo poptávku.',
+      });
+      return;
+    }
+
+    const quota = db.consumeChatDailyQuota(sessionHash, ipDailyLimit, globalDailyLimit);
+    if ('reason' in quota) {
+      db.addChatLog({
+        sessionHash,
+        userMessage: lastMessage.text,
+        assistantReply: `[Denní limit dosažen: ${quota.reason}]`,
+        suggestLeadForm: true,
+        suggestedServiceId: '',
+        model: resolvedChatModel,
+        status: 'rate_limited',
+      });
+      res.status(429).json({
+        error:
+          'Denní limit dotazů pro asistenta byl dosažen. Rádi vám odpovíme přímo přes poptávkový formulář.',
+      });
+      return;
+    }
+
+    const ai = options.generateChatReply ? null : getAiClient();
+    if (!options.generateChatReply && !ai) {
+      db.addChatLog({
+        sessionHash,
+        userMessage: lastMessage.text,
+        assistantReply: '[Gemini API není nakonfigurováno]',
+        suggestLeadForm: true,
+        suggestedServiceId: '',
+        model: resolvedChatModel,
+        status: 'error',
+      });
       res.status(503).json({
         error:
           'Asistent není momentálně připojen ke službě Gemini API (chybí konfigurace GEMINI_API_KEY v nastavení Secrets). Můžete ale rovnou využít náš poptávkový formulář.',
@@ -720,21 +1033,50 @@ export function createServerApp(options: CreateServerAppOptions = {}) {
       return;
     }
 
-    const validMessages = parsedChat.data.messages.slice(-12);
-    const appContext = parsedChat.data.appContext;
+    const currentSettings = db.getSettings();
+    const currentServices = db.listServices();
+    const currentBlogPosts = db.listBlogPosts();
+    const activeServiceIds = new Set(
+      currentServices.filter((s) => s.isActive).map((s) => s.id)
+    );
 
-    const contents = validMessages.map((m) => ({
+    // Strictly build knowledge base from SQLite settings & catalog (ignore untrusted client appContext)
+    const systemInstruction = buildServerSystemInstruction({
+      settings: currentSettings,
+      services: currentServices,
+      blogPosts: currentBlogPosts,
+    });
+
+    const contents = sanitizedMessages.map((m) => ({
       role: m.role,
-      parts: [{ text: m.text }],
+      parts: [
+        {
+          text:
+            m.role === 'user'
+              ? `Dotaz zákazníka: ${m.text}`
+              : m.text,
+        },
+      ],
     }));
 
     const callModelWithRetry = async (attempt = 0): Promise<string> => {
+      if (options.generateChatReply) {
+        return options.generateChatReply({
+          model: resolvedChatModel,
+          systemInstruction,
+          contents,
+        });
+      }
+      if (!ai) {
+        throw new Error('Gemini client unavailable');
+      }
+
       try {
         const response = await ai.models.generateContent({
-          model: process.env.GEMINI_MODEL?.trim() || 'gemini-4-hydrogen',
+          model: resolvedChatModel,
           contents,
           config: {
-            systemInstruction: buildSystemInstruction(appContext),
+            systemInstruction,
             thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
             responseMimeType: 'application/json',
             responseSchema: {
@@ -752,7 +1094,7 @@ export function createServerApp(options: CreateServerAppOptions = {}) {
                 suggestedServiceId: {
                   type: Type.STRING,
                   description:
-                    'Nejvhodnější ID služby pro formulář (např. srv-bytova-jadra, srv-rekonstrukce-bytu, srv-obklady-dlazby, srv-sadrokartony, srv-zednicke-prace) nebo prázdný řetězec.',
+                    'ID nejvhodnější aktivní služby z databáze nebo prázdný řetězec.',
                 },
                 suggestedPrefillSummary: {
                   type: Type.STRING,
@@ -785,26 +1127,49 @@ export function createServerApp(options: CreateServerAppOptions = {}) {
     try {
       const rawJson = await callModelWithRetry();
       if (!rawJson) {
+        db.addChatLog({
+          sessionHash,
+          userMessage: lastMessage.text,
+          assistantReply: '[Prázdná odpověď modelu]',
+          suggestLeadForm: false,
+          suggestedServiceId: '',
+          model: resolvedChatModel,
+          status: 'error',
+        });
         res
           .status(502)
           .json({ error: 'Asistent nevrátil žádnou odpověď. Zkuste dotaz prosím zopakovat.' });
         return;
       }
 
-      const parsed = JSON.parse(rawJson) as {
-        reply?: string;
-        suggestLeadForm?: boolean;
-        suggestedServiceId?: string;
-        suggestedPrefillSummary?: string;
-      };
+      const validatedOutput = validateAndSanitizeChatModelOutput(rawJson, activeServiceIds);
+      if (!validatedOutput) {
+        db.addChatLog({
+          sessionHash,
+          userMessage: lastMessage.text,
+          assistantReply: '[Neplatný formát výstupu modelu]',
+          suggestLeadForm: false,
+          suggestedServiceId: '',
+          model: resolvedChatModel,
+          status: 'error',
+        });
+        res.status(502).json({
+          error: 'Odpověď asistenta nemohla být ověřena. Zkuste prosím dotaz přeformulovat nebo využijte poptávku.',
+        });
+        return;
+      }
 
-      res.json({
-        reply:
-          parsed.reply || 'Rád vám pomohu s vašimi dotazy k rekonstrukci nebo stavebním pracím.',
-        suggestLeadForm: Boolean(parsed.suggestLeadForm),
-        suggestedServiceId: parsed.suggestedServiceId || '',
-        suggestedPrefillSummary: parsed.suggestedPrefillSummary || '',
+      db.addChatLog({
+        sessionHash,
+        userMessage: lastMessage.text,
+        assistantReply: validatedOutput.reply,
+        suggestLeadForm: validatedOutput.suggestLeadForm,
+        suggestedServiceId: validatedOutput.suggestedServiceId,
+        model: resolvedChatModel,
+        status: 'ok',
       });
+
+      res.json(validatedOutput);
     } catch (err: unknown) {
       console.error('Gemini chat endpoint error:', err);
       const message =
@@ -814,10 +1179,27 @@ export function createServerApp(options: CreateServerAppOptions = {}) {
           ? Number((err as { status?: number }).status)
           : 500;
 
+      db.addChatLog({
+        sessionHash,
+        userMessage: lastMessage.text,
+        assistantReply: `[Chyba API ${status}]`,
+        suggestLeadForm: false,
+        suggestedServiceId: '',
+        model: resolvedChatModel,
+        status: 'error',
+      });
+
       if (status === 400 || status === 403 || message.includes('API_KEY_INVALID')) {
         res.status(status || 400).json({
           error:
             'Konfigurace klíče Gemini API v Settings > Secrets není platná nebo chybí oprávnění.',
+        });
+        return;
+      }
+
+      if (status === 404) {
+        res.status(502).json({
+          error: `Nakonfigurovaný model AI (${resolvedChatModel}) nebyl na API nalezen. Zkontrolujte GEMINI_MODEL.`,
         });
         return;
       }
@@ -834,6 +1216,92 @@ export function createServerApp(options: CreateServerAppOptions = {}) {
         error: 'Nepodařilo se získat odpověď od asistenta. Zkuste dotaz odeslat znovu.',
       });
     }
+  });
+
+  const resolveBaseUrl = (req: Request): string => {
+    const configured = (options.appUrl ?? process.env.APP_URL ?? '').trim();
+    if (configured && configured !== 'MY_APP_URL') {
+      try {
+        return new URL(configured).origin;
+      } catch {
+        // Fall through to request host
+      }
+    }
+    const host = String(req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000')
+      .split(',')[0]
+      .trim();
+    const proto = isHttpsRequest(req) ? 'https' : req.protocol || 'http';
+    return `${proto}://${host}`;
+  };
+
+  const escapeXml = (raw: string): string =>
+    raw
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+
+  app.get('/robots.txt', (req: Request, res: Response) => {
+    const baseUrl = resolveBaseUrl(req);
+    const content = [
+      'User-agent: *',
+      'Allow: /',
+      'Disallow: /admin',
+      'Disallow: /api',
+      '',
+      `Sitemap: ${baseUrl}/sitemap.xml`,
+      '',
+    ].join('\n');
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.send(content);
+  });
+
+  app.get('/sitemap.xml', (req: Request, res: Response) => {
+    const baseUrl = resolveBaseUrl(req);
+    const activeServices = db.listServices().filter((s) => s.isActive);
+    const publishedPosts = db.listBlogPosts().filter((p) => p.isPublished);
+
+    const urls: Array<{ loc: string; lastmod?: string; changefreq: string; priority: string }> = [
+      { loc: `${baseUrl}/`, changefreq: 'weekly', priority: '1.0' },
+      ...activeServices.map((s) => ({
+        loc: `${baseUrl}/sluzba/${encodeURIComponent(s.slug)}`,
+        changefreq: 'monthly',
+        priority: '0.8',
+      })),
+      ...publishedPosts.map((p) => ({
+        loc: `${baseUrl}/blog/${encodeURIComponent(p.slug)}`,
+        lastmod: /^\d{4}-\d{2}-\d{2}/.test(p.publishedAt) ? p.publishedAt.slice(0, 10) : undefined,
+        changefreq: 'monthly',
+        priority: '0.7',
+      })),
+      ...CITY_PAGES.map((c) => ({
+        loc: `${baseUrl}/lokalita/${encodeURIComponent(c.slug)}`,
+        changefreq: 'monthly',
+        priority: c.isHeadquarters ? '0.9' : '0.7',
+      })),
+    ];
+
+    const body = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+      ...urls.map((u) => {
+        const lines = [
+          '  <url>',
+          `    <loc>${escapeXml(u.loc)}</loc>`,
+          ...(u.lastmod ? [`    <lastmod>${escapeXml(u.lastmod)}</lastmod>`] : []),
+          `    <changefreq>${u.changefreq}</changefreq>`,
+          `    <priority>${u.priority}</priority>`,
+          '  </url>',
+        ];
+        return lines.join('\n');
+      }),
+      '</urlset>',
+      '',
+    ].join('\n');
+
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.send(body);
   });
 
   // Catch-all for unknown /api routes so SPA HTML is never returned for missing endpoints

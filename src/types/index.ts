@@ -174,6 +174,9 @@ export interface SiteSettings {
   email: string;
   ico: string;
   dic: string;
+  isVatPayer?: boolean;
+  certificationNumber?: string;
+  warrantyMonths?: number;
   headquarters?: string;
   operatingRegion: string;
   primaryLocations: string[];
@@ -184,13 +187,65 @@ export interface SiteSettings {
   isPublicLaunchReady: boolean;
   notifyEmailEnabled?: boolean;
   notifyEmailAddress?: string;
+  chatPricingSummary?: string;
+  chatTimelineSummary?: string;
+  chatPaymentTerms?: string;
 }
 
-export interface AdminUser {
+export interface ChatLogEntry {
   id: string;
-  username: string;
-  role: 'admin' | 'editor';
   createdAt: string;
+  sessionHash: string;
+  userMessage: string;
+  assistantReply: string;
+  suggestLeadForm: boolean;
+  suggestedServiceId: string;
+  model: string;
+  status: 'ok' | 'rejected' | 'rate_limited' | 'error';
+}
+
+export interface PricingRange {
+  min: number;
+  max: number;
+}
+
+export interface PricingApartmentTier extends PricingRange {
+  duration: string;
+}
+
+export interface PricingConfig {
+  version: number;
+  updatedAt: string;
+  core: {
+    demolitionUmakart: PricingRange;
+    demolitionMasonry: PricingRange;
+    newMasonryAndPlaster: PricingRange;
+    plumbingAndWaste: PricingRange;
+    tilingStandard: PricingRange;
+    tilingLargeFormat: PricingRange;
+    sanitaryWalkIn: PricingRange;
+    sanitaryTub: PricingRange;
+    durationUmakart: string;
+    durationMasonry: string;
+  };
+  apartment: {
+    size1kk: PricingApartmentTier;
+    size2kk: PricingApartmentTier;
+    size3kk: PricingApartmentTier;
+    size4kk: PricingApartmentTier;
+    interiorOnlyMultiplier: number;
+    ceilingsAddition: PricingRange;
+    flooringAddition: PricingRange;
+  };
+}
+
+export interface QuoteItem {
+  id: string;
+  name: string;
+  category: 'prace' | 'material';
+  unit: string;
+  quantity: number;
+  unitPrice: number;
 }
 
 export interface NewsletterSubscriber {

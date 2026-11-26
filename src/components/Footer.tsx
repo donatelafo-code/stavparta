@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Hammer,
   Phone,
@@ -12,22 +13,27 @@ import {
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
-import { SiteSettings } from '../types';
+import { ServiceItem, SiteSettings } from '../types';
+import { CITY_PAGES } from '../shared/cityPages';
 import { api, ApiError } from '../services/api';
 import { newsletterSubscribeSchema } from '../shared/schemas';
 
 interface FooterProps {
   settings: SiteSettings;
+  services?: ServiceItem[];
   onOpenLeadForm: () => void;
   onOpenAdmin: () => void;
   onOpenGdpr: () => void;
+  onOpenTerms: () => void;
 }
 
 export const Footer: React.FC<FooterProps> = ({
   settings,
+  services = [],
   onOpenLeadForm,
   onOpenAdmin,
   onOpenGdpr,
+  onOpenTerms,
 }) => {
   // Newsletter subscription state
   const [newsletterEmail, setNewsletterEmail] = useState('');
@@ -95,7 +101,7 @@ export const Footer: React.FC<FooterProps> = ({
           </div>
           <button
             onClick={onOpenLeadForm}
-            className="px-6 py-3.5 bg-[#F07818] hover:bg-[#d9660e] text-white font-bold text-sm rounded shadow transition-all cursor-pointer whitespace-nowrap"
+            className="px-6 py-3.5 bg-[#C2560A] hover:bg-[#9E4306] text-white font-bold text-sm rounded shadow transition-all cursor-pointer whitespace-nowrap"
           >
             Nezávazně poptat stavbu
           </button>
@@ -155,23 +161,29 @@ export const Footer: React.FC<FooterProps> = ({
 
                 <div className="flex flex-col sm:flex-row items-stretch gap-2">
                   <div className="relative flex-1">
+                    <label htmlFor="footer-newsletter-email" className="sr-only">
+                      Váš e-mail pro odběr novinek
+                    </label>
                     <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
+                      id="footer-newsletter-email"
                       type="email"
                       value={newsletterEmail}
+                      aria-invalid={newsletterStatus === 'error'}
+                      aria-describedby={newsletterStatus === 'error' ? 'footer-newsletter-error' : undefined}
                       onChange={(e) => {
                         setNewsletterEmail(e.target.value);
                         if (newsletterStatus === 'error') setNewsletterStatus('idle');
                       }}
                       placeholder="Váš e-mail (např. jmeno@email.cz)"
-                      className="w-full pl-10 pr-3 py-3 bg-[#17232D] text-white placeholder:text-slate-500 border border-[#263746] rounded-xl text-xs sm:text-sm focus:outline-none focus:border-[#F07818] transition-colors"
+                      className="w-full pl-10 pr-3 py-3 bg-[#17232D] text-white placeholder:text-slate-400 border border-[#263746] rounded-xl text-xs sm:text-sm focus:outline-none focus:border-[#F07818] transition-colors"
                       required
                     />
                   </div>
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="px-5 py-3 bg-[#F07818] hover:bg-[#d9660e] text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0 disabled:opacity-50"
+                    className="px-5 py-3 bg-[#C2560A] hover:bg-[#9E4306] text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0 disabled:opacity-50"
                   >
                     <span>Odebírat novinky</span>
                     <ArrowRight className="w-4 h-4" />
@@ -179,7 +191,11 @@ export const Footer: React.FC<FooterProps> = ({
                 </div>
 
                 {newsletterStatus === 'error' && (
-                  <div className="text-[11px] text-red-400 flex items-center gap-1.5 pt-0.5">
+                  <div
+                    id="footer-newsletter-error"
+                    role="alert"
+                    className="text-[11px] text-red-300 flex items-center gap-1.5 pt-0.5"
+                  >
                     <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                     <span>{newsletterFeedback}</span>
                   </div>
@@ -217,7 +233,7 @@ export const Footer: React.FC<FooterProps> = ({
           {/* Col 1: Brand & Craft Identity */}
           <div className="space-y-3 md:col-span-1">
             <div className="flex items-center gap-2 text-white font-extrabold text-base">
-              <div className="w-7 h-7 rounded bg-[#F07818] flex items-center justify-center text-white">
+              <div className="w-7 h-7 rounded bg-[#C2560A] flex items-center justify-center text-white">
                 <Hammer className="w-4 h-4" />
               </div>
               <span>STAVPARTA</span>
@@ -233,11 +249,13 @@ export const Footer: React.FC<FooterProps> = ({
               Hlavní řemesla
             </h4>
             <ul className="space-y-1.5 text-slate-400">
-              <li>Kompletní rekonstrukce bytů a domů</li>
-              <li>Zednické práce a omítky</li>
-              <li>Sádrokartony a podhledy</li>
-              <li>Obklady a velkoformátové dlažby</li>
-              <li>Zateplení fasád a venkovní práce</li>
+              {services.filter((s) => s.isActive).slice(0, 6).map((srv) => (
+                <li key={srv.id}>
+                  <Link to={`/sluzba/${srv.slug}`} className="hover:text-[#F07818] transition-colors">
+                    {srv.title}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
 
@@ -247,23 +265,41 @@ export const Footer: React.FC<FooterProps> = ({
               Kontakt & Působnost
             </h4>
             <div className="space-y-1.5 text-slate-400">
-              <div className="flex items-center gap-2">
-                <Phone className="w-3.5 h-3.5 text-[#F07818]" />
-                <a href={`tel:${settings.phone}`} className="hover:text-white transition-colors">
-                  {settings.phone}
-                </a>
-              </div>
-              <div className="flex items-center gap-2">
-                <Mail className="w-3.5 h-3.5 text-[#F07818]" />
-                <a href={`mailto:${settings.email}`} className="hover:text-white transition-colors">
-                  {settings.email}
-                </a>
-              </div>
+              {settings.phone.trim() && (
+                <div className="flex items-center gap-2">
+                  <Phone className="w-3.5 h-3.5 text-[#F07818]" />
+                  <a
+                    href={`tel:${settings.phone.replace(/\s+/g, '')}`}
+                    className="hover:text-white transition-colors"
+                  >
+                    {settings.phone}
+                  </a>
+                </div>
+              )}
+              {settings.email.trim() && (
+                <div className="flex items-center gap-2">
+                  <Mail className="w-3.5 h-3.5 text-[#F07818]" />
+                  <a href={`mailto:${settings.email}`} className="hover:text-white transition-colors">
+                    {settings.email}
+                  </a>
+                </div>
+              )}
               <div className="flex items-start gap-2 mt-2">
                 <MapPin className="w-3.5 h-3.5 text-[#F07818] shrink-0 mt-0.5" />
                 <div>
                   <div className="text-white font-bold">Centrála: Zábřeh na Moravě</div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">{settings.operatingRegion} (Šumperk, Mohelnice, Olomouc a okolí)</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">{settings.operatingRegion}</div>
+                  <div className="flex flex-wrap gap-x-2.5 gap-y-1 mt-1.5 text-[11px]">
+                    {CITY_PAGES.map((city) => (
+                      <Link
+                        key={city.slug}
+                        to={`/lokalita/${city.slug}`}
+                        className="text-slate-400 hover:text-[#F07818] underline-offset-2 hover:underline transition-colors"
+                      >
+                        {city.cityName}
+                      </Link>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -276,11 +312,28 @@ export const Footer: React.FC<FooterProps> = ({
             </h4>
             <div className="text-slate-400 space-y-1">
               <p className="text-[11px]">
-                IČO: <span className="text-slate-300 font-mono">{settings.ico}</span>
+                IČO:{' '}
+                <span className="text-slate-300 font-mono">
+                  {settings.ico.trim() || 'k doplnění v administraci'}
+                </span>
               </p>
               <p className="text-[11px]">
-                DIČ: <span className="text-slate-300 font-mono">{settings.dic}</span>
+                DIČ:{' '}
+                <span className="text-slate-300 font-mono">
+                  {settings.dic.trim() || 'k doplnění v administraci'}
+                </span>{' '}
+                <span className="text-slate-500">
+                  ({settings.isVatPayer ? 'Plátce DPH' : 'Neplátce DPH'})
+                </span>
               </p>
+              {settings.certificationNumber?.trim() && (
+                <p className="text-[11px]">
+                  Oprávnění / osvědčení:{' '}
+                  <span className="text-slate-300 font-mono">
+                    {settings.certificationNumber.trim()}
+                  </span>
+                </p>
+              )}
               <p className="text-[10px] text-slate-500 leading-normal pt-1">
                 {settings.addressNotice}
               </p>
@@ -294,8 +347,20 @@ export const Footer: React.FC<FooterProps> = ({
             © {new Date().getFullYear()} STAVPARTA. Všechna práva vyhrazena.
           </div>
 
-          <div className="flex items-center gap-5">
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-5">
             <button
+              type="button"
+              onClick={onOpenTerms}
+              className="hover:text-slate-300 transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              <Shield className="w-3.5 h-3.5 text-slate-400" />
+              <span>Obchodní a záruční podmínky</span>
+            </button>
+
+            <span className="text-slate-700 hidden sm:inline">·</span>
+
+            <button
+              type="button"
               onClick={onOpenGdpr}
               className="hover:text-slate-300 transition-colors flex items-center gap-1 cursor-pointer"
             >
@@ -303,9 +368,10 @@ export const Footer: React.FC<FooterProps> = ({
               <span>Ochrana osobních údajů (GDPR)</span>
             </button>
 
-            <span className="text-slate-700">·</span>
+            <span className="text-slate-700 hidden sm:inline">·</span>
 
             <button
+              type="button"
               onClick={onOpenAdmin}
               className="text-slate-400 hover:text-[#F07818] transition-colors flex items-center gap-1 cursor-pointer font-medium"
             >

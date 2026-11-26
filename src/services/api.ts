@@ -1,5 +1,6 @@
 import {
   BlogPost,
+  ChatLogEntry,
   Lead,
   LeadStatus,
   NewsletterSubscriber,
@@ -109,7 +110,19 @@ export const api = {
     return requestJson<BootstrapResponse>('/api/public/bootstrap');
   },
 
-  submitLead(payload: CreateLeadPayload): Promise<CreateLeadResponse> {
+  submitLead(payload: CreateLeadPayload, files?: File[]): Promise<CreateLeadResponse> {
+    if (files && files.length > 0) {
+      const formData = new FormData();
+      formData.append('payload', JSON.stringify(payload));
+      for (const file of files) {
+        formData.append('attachments', file, file.name);
+      }
+      return requestJson<CreateLeadResponse>('/api/leads', {
+        method: 'POST',
+        body: formData,
+      });
+    }
+
     return requestJson<CreateLeadResponse>('/api/leads', {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -248,11 +261,17 @@ export const api = {
     settings: SiteSettings;
     projects: Project[];
     testimonials: Testimonial[];
+    remainingDemoProjects: number;
+    remainingDemoTestimonials: number;
+    verifiedClean: boolean;
   }> {
     return requestJson<{
       settings: SiteSettings;
       projects: Project[];
       testimonials: Testimonial[];
+      remainingDemoProjects: number;
+      remainingDemoTestimonials: number;
+      verifiedClean: boolean;
     }>('/api/admin/maintenance/clear-demo', {
       method: 'POST',
     });
@@ -273,6 +292,31 @@ export const api = {
     return requestJson('/api/admin/maintenance/restore', {
       method: 'POST',
       body: JSON.stringify(dump),
+    });
+  },
+
+  eraseGdprByEmail(email: string): Promise<{
+    ok: boolean;
+    normalizedEmail: string;
+    deletedLeadsCount: number;
+    deletedAttachmentsCount: number;
+    deletedSubscribersCount: number;
+  }> {
+    return requestJson('/api/admin/gdpr/erase', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  getChatLogs(limit = 100): Promise<{ logs: ChatLogEntry[] }> {
+    return requestJson<{ logs: ChatLogEntry[] }>(
+      `/api/admin/chat-logs?limit=${encodeURIComponent(String(limit))}`
+    );
+  },
+
+  deleteChatLog(id: string): Promise<{ ok: boolean }> {
+    return requestJson<{ ok: boolean }>(`/api/admin/chat-logs/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
     });
   },
 };

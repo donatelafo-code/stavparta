@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   ArrowLeft,
   ArrowRight,
@@ -8,13 +9,14 @@ import {
   Clock,
 } from 'lucide-react';
 import { ServiceItem } from '../types';
+import { ResponsiveImage } from './ResponsiveImage';
 
 interface ServiceDetailPageProps {
   service: ServiceItem;
   allServices: ServiceItem[];
-  onBack: () => void;
+  onBack?: () => void;
   onOpenLeadForm: (serviceId: string) => void;
-  onSelectService: (service: ServiceItem) => void;
+  onSelectService?: (service: ServiceItem) => void;
 }
 
 export const ServiceDetailPage: React.FC<ServiceDetailPageProps> = ({
@@ -34,25 +36,28 @@ export const ServiceDetailPage: React.FC<ServiceDetailPageProps> = ({
     <div className="bg-[#F1F4F6] min-h-screen py-8 sm:py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-8">
         {/* Breadcrumb Navigation */}
-        <div className="flex items-center gap-2 text-xs text-slate-500 mb-6">
-          <button
-            onClick={onBack}
-            className="hover:text-[#F07818] flex items-center gap-1 font-semibold cursor-pointer"
+        <nav aria-label="Drobečková navigace" className="flex items-center gap-2 text-xs text-slate-600 mb-6">
+          <Link
+            to="/"
+            onClick={() => onBack?.()}
+            className="hover:text-[#B84F00] flex items-center gap-1 font-semibold cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Zpět na přehled webu</span>
-          </button>
+          </Link>
           <span>/</span>
-          <span className="text-slate-400">Služby</span>
+          <Link to="/#sluzby" className="text-slate-600 hover:text-[#B84F00]">
+            Služby
+          </Link>
           <span>/</span>
           <span className="font-bold text-[#17232D]">{service.title}</span>
-        </div>
+        </nav>
 
         {/* Hero Section of Subpage */}
         <div className="bg-[#17232D] text-white rounded-2xl overflow-hidden shadow-xl border border-[#263746] mb-12">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center p-6 sm:p-10 lg:p-12">
             <div className="lg:col-span-7 space-y-6">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#263746] rounded text-xs font-bold uppercase tracking-wider text-[#F07818]">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#263746] rounded text-xs font-bold uppercase tracking-wider text-[#FF9642]">
                 <span>{service.category}</span>
                 <span className="text-slate-400">·</span>
                 <span className="text-slate-300 normal-case">Olomoucký kraj</span>
@@ -69,17 +74,18 @@ export const ServiceDetailPage: React.FC<ServiceDetailPageProps> = ({
               <div className="flex flex-wrap items-center gap-4 pt-2">
                 <button
                   onClick={() => onOpenLeadForm(service.id)}
-                  className="px-6 py-3.5 bg-[#F07818] hover:bg-[#d9660e] text-white font-bold text-sm rounded shadow-lg transition-all flex items-center gap-2 cursor-pointer"
+                  className="px-6 py-3.5 bg-[#C2560A] hover:bg-[#9E4306] text-white font-bold text-sm rounded shadow-lg transition-all flex items-center gap-2 cursor-pointer"
                 >
                   <span>Nezávazně poptat tuto službu</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
-                <button
-                  onClick={onBack}
+                <Link
+                  to="/#sluzby"
+                  onClick={() => onBack?.()}
                   className="px-5 py-3.5 bg-[#263746] hover:bg-[#34485a] text-slate-200 font-semibold text-sm rounded border border-slate-600 transition-colors"
                 >
                   Prohlédnout ostatní služby
-                </button>
+                </Link>
               </div>
             </div>
 
@@ -87,9 +93,13 @@ export const ServiceDetailPage: React.FC<ServiceDetailPageProps> = ({
             <div className="lg:col-span-5">
               <div className="relative aspect-4/3 rounded-xl overflow-hidden shadow-2xl border border-slate-700">
                 {service.image ? (
-                  <img
+                  <ResponsiveImage
                     src={service.image}
                     alt={service.title}
+                    sizes="(max-width: 1024px) 100vw, 42vw"
+                    defaultWidth={1200}
+                    defaultHeight={896}
+                    priority
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -112,7 +122,7 @@ export const ServiceDetailPage: React.FC<ServiceDetailPageProps> = ({
             {/* Features & Activities Checklist */}
             {service.features && service.features.length > 0 && (
               <div className="bg-white rounded-xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-4">
-                <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#F07818]">
+                <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#B84F00]">
                   <Layers className="w-4 h-4" />
                   <span>Rozsah prací</span>
                 </div>
@@ -125,7 +135,7 @@ export const ServiceDetailPage: React.FC<ServiceDetailPageProps> = ({
                       key={idx}
                       className="p-3 bg-[#F1F4F6] rounded-lg border border-slate-200/80 flex items-start gap-3"
                     >
-                      <CheckCircle2 className="w-4 h-4 text-[#F07818] shrink-0 mt-0.5" />
+                      <CheckCircle2 className="w-4 h-4 text-[#B84F00] shrink-0 mt-0.5" />
                       <span className="text-xs font-medium text-slate-800 leading-relaxed">
                         {feat}
                       </span>
@@ -139,7 +149,7 @@ export const ServiceDetailPage: React.FC<ServiceDetailPageProps> = ({
             {service.workflowSteps && service.workflowSteps.length > 0 && (
               <div className="bg-white rounded-xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
                 <div>
-                  <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#F07818] mb-1">
+                  <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#B84F00] mb-1">
                     <Clock className="w-4 h-4" />
                     <span>Harmonogram a fáze</span>
                   </div>
@@ -155,13 +165,13 @@ export const ServiceDetailPage: React.FC<ServiceDetailPageProps> = ({
                   {service.workflowSteps.map((ws, i) => (
                     <div
                       key={i}
-                      className="flex items-start gap-4 p-4 rounded-lg border border-slate-200 bg-[#F8FAFC] hover:border-[#F07818]/50 transition-colors"
+                      className="flex items-start gap-4 p-4 rounded-lg border border-slate-200 bg-[#F8FAFC] hover:border-[#C2560A]/50 transition-colors"
                     >
                       <div className="w-10 h-10 rounded-lg bg-[#17232D] text-[#F07818] font-black text-sm flex items-center justify-center shrink-0">
                         {ws.step}
                       </div>
                       <div>
-                        <h4 className="font-bold text-sm text-[#17232D]">{ws.title}</h4>
+                        <h3 className="font-bold text-sm text-[#17232D]">{ws.title}</h3>
                         <p className="text-xs text-slate-600 mt-1 leading-relaxed">
                           {ws.description}
                         </p>
@@ -175,7 +185,7 @@ export const ServiceDetailPage: React.FC<ServiceDetailPageProps> = ({
             {/* FAQ Accordion */}
             {service.faq && service.faq.length > 0 && (
               <div className="bg-white rounded-xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-4">
-                <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#F07818]">
+                <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#B84F00]">
                   <HelpCircle className="w-4 h-4" />
                   <span>Časté otázky a odpovědi</span>
                 </div>
@@ -190,11 +200,13 @@ export const ServiceDetailPage: React.FC<ServiceDetailPageProps> = ({
                       className="border border-slate-200 rounded-lg overflow-hidden transition-all"
                     >
                       <button
+                        type="button"
+                        aria-expanded={openFaqIdx === idx}
                         onClick={() => setOpenFaqIdx(openFaqIdx === idx ? null : idx)}
                         className="w-full text-left p-4 bg-slate-50 hover:bg-slate-100 flex items-center justify-between text-xs sm:text-sm font-bold text-[#17232D] cursor-pointer"
                       >
                         <span>{item.question}</span>
-                        <span className="text-[#F07818] text-base font-bold ml-2">
+                        <span className="text-[#B84F00] text-base font-bold ml-2">
                           {openFaqIdx === idx ? '−' : '+'}
                         </span>
                       </button>
@@ -227,7 +239,7 @@ export const ServiceDetailPage: React.FC<ServiceDetailPageProps> = ({
 
               <button
                 onClick={() => onOpenLeadForm(service.id)}
-                className="w-full py-3.5 bg-[#F07818] hover:bg-[#d9660e] text-white font-bold text-xs rounded shadow transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3.5 bg-[#C2560A] hover:bg-[#9E4306] text-white font-bold text-xs rounded shadow transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>Poptat tuto službu</span>
                 <ArrowRight className="w-4 h-4" />
@@ -252,27 +264,28 @@ export const ServiceDetailPage: React.FC<ServiceDetailPageProps> = ({
             {/* Related Services Links (Mandatory requirement 3) */}
             {relatedServices.length > 0 && (
               <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm space-y-3">
-                <h4 className="font-bold text-sm text-[#17232D]">Související práce na stavbě:</h4>
+                <h3 className="font-bold text-sm text-[#17232D]">Související práce na stavbě:</h3>
                 <p className="text-xs text-slate-500">
                   Tuto službu naši zákazníci nejčastěji kombinují s:
                 </p>
                 <div className="space-y-2 pt-1">
                   {relatedServices.map((rel) => (
-                    <button
+                    <Link
                       key={rel.id}
-                      onClick={() => onSelectService(rel)}
-                      className="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-[#F07818] hover:bg-slate-50 transition-colors flex items-center justify-between group cursor-pointer"
+                      to={`/sluzba/${rel.slug}`}
+                      onClick={() => onSelectService?.(rel)}
+                      className="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-[#C2560A] hover:bg-slate-50 transition-colors flex items-center justify-between group cursor-pointer"
                     >
                       <div>
-                        <span className="text-xs font-bold text-[#17232D] group-hover:text-[#F07818] transition-colors block">
+                        <span className="text-xs font-bold text-[#17232D] group-hover:text-[#B84F00] transition-colors block">
                           {rel.title}
                         </span>
                         <span className="text-[11px] text-slate-500 line-clamp-1">
                           {rel.shortDescription}
                         </span>
                       </div>
-                      <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-[#F07818] shrink-0 ml-2" />
-                    </button>
+                      <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-[#B84F00] shrink-0 ml-2" />
+                    </Link>
                   ))}
                 </div>
               </div>

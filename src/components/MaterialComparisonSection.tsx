@@ -310,7 +310,7 @@ export const MaterialComparisonSection: React.FC<MaterialComparisonSectionProps>
         <span
           key={step}
           className={`h-1.5 w-4 rounded-full ${
-            step <= score ? 'bg-[#F07818]' : 'bg-slate-200'
+            step <= score ? 'bg-[#C2560A]' : 'bg-slate-200'
           }`}
         />
       ))}
@@ -326,7 +326,7 @@ export const MaterialComparisonSection: React.FC<MaterialComparisonSectionProps>
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-10">
           <div className="max-w-3xl">
-            <div className="flex items-center gap-2 text-xs font-semibold text-[#F07818] mb-2">
+            <div className="flex items-center gap-2 text-xs font-semibold text-[#B84F00] mb-2">
               <Columns3 className="w-4 h-4 shrink-0" />
               <span>Konzultační srovnávač materiálů</span>
               <span aria-hidden="true" className="text-slate-400">·</span>
@@ -369,7 +369,7 @@ export const MaterialComparisonSection: React.FC<MaterialComparisonSectionProps>
                     className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-2 ${
                       active
                         ? 'bg-[#17232D] text-white shadow-sm'
-                        : 'bg-white text-slate-700 border border-slate-200 hover:border-[#F07818]/60'
+                        : 'bg-white text-slate-700 border border-slate-200 hover:border-[#C2560A]/60'
                     }`}
                   >
                     <Layers className={`w-4 h-4 ${active ? 'text-[#F07818]' : 'text-slate-400'}`} />
@@ -379,7 +379,7 @@ export const MaterialComparisonSection: React.FC<MaterialComparisonSectionProps>
               })}
             </div>
 
-            <p className="text-xs text-slate-500 max-w-md">{activeCategory.description}</p>
+            <p className="text-xs text-slate-600 max-w-md">{activeCategory.description}</p>
           </div>
 
           {/* Priority & Material Toggles */}
@@ -397,7 +397,7 @@ export const MaterialComparisonSection: React.FC<MaterialComparisonSectionProps>
                     onClick={() => setActivePriority(pf.key)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                       isActive
-                        ? 'bg-[#F07818] text-white shadow-xs'
+                        ? 'bg-[#C2560A] text-white shadow-xs'
                         : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300'
                     }`}
                   >
@@ -469,7 +469,7 @@ export const MaterialComparisonSection: React.FC<MaterialComparisonSectionProps>
                       >
                         <div className="space-y-1.5">
                           {isRecommended && (
-                            <span className="inline-block px-2 py-0.5 rounded bg-[#F07818] text-white text-[10px] font-bold tracking-wide">
+                            <span className="inline-block px-2 py-0.5 rounded bg-[#C2560A] text-white text-[10px] font-bold tracking-wide">
                               Doporučeno pro prioritu
                             </span>
                           )}
@@ -689,7 +689,7 @@ export const MaterialComparisonSection: React.FC<MaterialComparisonSectionProps>
                           }
                           className={`w-full py-2.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
                             isRecommended
-                              ? 'bg-[#F07818] hover:bg-[#d9660e] text-white shadow-xs'
+                              ? 'bg-[#C2560A] hover:bg-[#9E4306] text-white shadow-xs'
                               : 'bg-white hover:bg-[#17232D] text-[#17232D] hover:text-white border border-slate-300'
                           }`}
                         >

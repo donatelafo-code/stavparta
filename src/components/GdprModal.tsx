@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { X, ShieldCheck, AlertCircle } from 'lucide-react';
 import { SiteSettings } from '../types';
+import { useModalAccessibility } from '../hooks/useModalAccessibility';
 
 interface GdprModalProps {
   settings: SiteSettings;
@@ -9,15 +10,34 @@ interface GdprModalProps {
 }
 
 export const GdprModal: React.FC<GdprModalProps> = ({ settings, isOpen, onClose }) => {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+
+  useModalAccessibility({
+    isOpen,
+    onClose,
+    containerRef: dialogRef,
+  });
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto p-6 sm:p-8 relative border border-slate-200">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs"
+      onClick={onClose}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="gdpr-modal-title"
+        className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto p-6 sm:p-8 relative border border-slate-200"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
+          type="button"
           onClick={onClose}
-          className="absolute top-5 right-5 text-slate-400 hover:text-slate-800 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
-          aria-label="Zavřít okno"
+          className="absolute top-5 right-5 text-slate-500 hover:text-slate-800 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+          aria-label="Zavřít okno ochrany osobních údajů"
         >
           <X className="w-5 h-5" />
         </button>
@@ -27,7 +47,7 @@ export const GdprModal: React.FC<GdprModalProps> = ({ settings, isOpen, onClose 
             <ShieldCheck className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-xl font-extrabold text-[#17232D]">
+            <h3 id="gdpr-modal-title" className="text-xl font-extrabold text-[#17232D]">
               Informace o zpracování osobních údajů
             </h3>
             <p className="text-xs text-slate-500">
@@ -52,11 +72,17 @@ export const GdprModal: React.FC<GdprModalProps> = ({ settings, isOpen, onClose 
             <h4 className="font-bold text-[#17232D] text-sm mb-1">1. Správce osobních údajů</h4>
             <p>
               Správcem osobních údajů je stavební parta <strong>{settings.brandName}</strong>{' '}
+              {settings.ico.trim() ? <>(IČO: {settings.ico.trim()}) </> : null}
               působící v Olomouckém kraji. Kontaktní e-mail pro záležitosti ochrany údajů je{' '}
-              <a href={`mailto:${settings.email}`} className="text-[#F07818] underline">
+              <a href={`mailto:${settings.email}`} className="text-[#B84F00] font-semibold underline">
                 {settings.email}
               </a>
-              , telefon: <strong>{settings.phone}</strong>.
+              {settings.phone.trim() ? (
+                <>
+                  , telefon: <strong>{settings.phone}</strong>
+                </>
+              ) : null}
+              .
             </p>
           </div>
 
@@ -88,12 +114,30 @@ export const GdprModal: React.FC<GdprModalProps> = ({ settings, isOpen, onClose 
 
           <div>
             <h4 className="font-bold text-[#17232D] text-sm mb-1">4. Doba uchování údajů</h4>
-            <p>
-              Poptávky a kontaktní údaje uchováváme po dobu nezbytnou k vyřízení poptávky, maximálně
-              však <strong>12 měsíců</strong> od odeslání, pokud nedojde k uzavření smlouvy o dílo.
-              V případě realizace zakázky jsou fakturační a smluvní údaje uchovávány po dobu
-              stanovenou daňovými a účetními zákony ČR.
-            </p>
+            <div className="overflow-x-auto mt-2">
+              <table className="w-full text-left border border-slate-200 rounded-lg overflow-hidden text-xs">
+                <thead className="bg-slate-50 text-slate-700 font-bold">
+                  <tr>
+                    <th className="py-2 px-3 border-b border-slate-200">Kategorie údajů</th>
+                    <th className="py-2 px-3 border-b border-slate-200">Doba uchování</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  <tr>
+                    <td className="py-2 px-3">Poptávky a přiložené soubory (bez uzavření smlouvy)</td>
+                    <td className="py-2 px-3 font-medium">Max. 12 měsíců od vyřízení poptávky</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3">Odběr novinek (newsletter)</td>
+                    <td className="py-2 px-3 font-medium">Do odvolání souhlasu / výmazu na žádost</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3">Realizované zakázky a daňové doklady</td>
+                    <td className="py-2 px-3 font-medium">Dle příslušných účetních a daňových předpisů ČR</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <div>
@@ -101,32 +145,41 @@ export const GdprModal: React.FC<GdprModalProps> = ({ settings, isOpen, onClose 
               5. Zabezpečení a příjemci údajů
             </h4>
             <p>
-              Osobní údaje nejsou předávány žádným třetím stranám pro marketingové účely ani do
-              zemí mimo Evropskou unii. Přístup k nim mají pouze oprávnění řemeslníci přímo
-              zodpovědní za kalkulaci a realizaci zakázky. Databáze je zabezpečena a přístupná pouze
-              přes autorizovanou administraci.
+              Osobní údaje nejsou předávány třetím stranám pro marketingové účely ani do zemí mimo
+              Evropskou unii. Přístup k nim mají pouze oprávněné osoby správce zodpovědné za
+              kalkulaci a realizaci zakázky. Databáze a nahrané přílohy jsou uloženy na serveru s
+              řízeným přístupem do zabezpečené administrace.
             </p>
           </div>
 
           <div>
-            <h4 className="font-bold text-[#17232D] text-sm mb-1">6. Vaše práva</h4>
+            <h4 className="font-bold text-[#17232D] text-sm mb-1">
+              6. Vaše práva a výmaz údajů na žádost
+            </h4>
             <p>
               Jako subjekt údajů máte právo na přístup ke svým osobním údajům, jejich opravu,
-              výmaz (právo být zapomenut), omezení zpracování a podání stížnosti u Úřadu pro
-              ochranu osobních údajů (www.uoou.cz). Kdykoliv nás můžete kontaktovat na{' '}
-              <a href={`mailto:${settings.email}`} className="text-[#F07818] underline">
+              omezení zpracování, přenositelnost a <strong>výmaz (právo být zapomenut)</strong>,
+              jakož i právo podat stížnost u Úřadu pro ochranu osobních údajů (www.uoou.cz).
+              O okamžitý výmaz své e-mailové adresy, poptávek a příloh můžete kdykoliv požádat na
+              e-mailu{' '}
+              <a href={`mailto:${settings.email}`} className="text-[#B84F00] font-semibold underline">
                 {settings.email}
               </a>
-              .
+              . Správce provede kompletní odstranění záznamů prostřednictvím nástroje GDPR výmazu v
+              administraci.
             </p>
           </div>
 
           <div>
-            <h4 className="font-bold text-[#17232D] text-sm mb-1">7. Soubory cookies</h4>
+            <h4 className="font-bold text-[#17232D] text-sm mb-1">
+              7. Soubory cookies a externí služby
+            </h4>
             <p>
-              Tento web využívá pouze nezbytné technické úložiště pro bezpečný běh administrace a
-              uložení stavu formuláře. Nevyužíváme žádné agresivní sledovací ani profilovací cookies
-              třetích stran.
+              Tento web používá pouze nezbytnou technickou relační cookie pro zabezpečené přihlášení
+              do administrace. Písma jsou načítána lokálně ze serveru webu (bez odesílání požadavků
+              na Google Fonts). Interaktivní mapa působnosti se načítá až po vašem výslovném
+              kliknutí na tlačítko pro zobrazení mapy (při načtení mapových dlaždic dochází k
+              přenosu IP adresy poskytovateli OpenStreetMap / CARTO).
             </p>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Play,
   Pause,
@@ -10,6 +10,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { ProjectVideo } from '../types';
+import { ResponsiveImage } from './ResponsiveImage';
 
 interface SiteVideoPlayerProps {
   video: ProjectVideo;
@@ -148,7 +149,7 @@ const SiteVideoPlayerInner: React.FC<SiteVideoPlayerProps> = ({
             poster={video.posterUrl}
             muted={isMuted}
             playsInline
-            preload="metadata"
+            preload="none"
             onClick={togglePlay}
             onLoadedMetadata={(e) => {
               const d = e.currentTarget.duration;
@@ -166,9 +167,12 @@ const SiteVideoPlayerInner: React.FC<SiteVideoPlayerProps> = ({
           />
         ) : (
           <div className="relative w-full h-full bg-slate-900">
-            <img
+            <ResponsiveImage
               src={video.posterUrl}
               alt={video.title}
+              sizes="(max-width: 1024px) 100vw, 66vw"
+              defaultWidth={1200}
+              defaultHeight={896}
               className="w-full h-full object-cover opacity-80"
             />
             <div className="absolute inset-0 bg-black/55 flex flex-col items-center justify-center p-4 text-center text-white">
@@ -197,7 +201,7 @@ const SiteVideoPlayerInner: React.FC<SiteVideoPlayerProps> = ({
             aria-label={hasStarted ? 'Pokračovat v přehrávání videa' : 'Přehrát video ze staveniště'}
             className="absolute inset-0 flex flex-col items-center justify-center bg-black/35 hover:bg-black/25 transition-colors cursor-pointer group"
           >
-            <span className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#F07818] group-hover:bg-[#d9660e] group-hover:scale-105 transition-all text-white flex items-center justify-center shadow-xl border-2 border-white/25">
+            <span className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#C2560A] group-hover:bg-[#9E4306] group-hover:scale-105 transition-all text-white flex items-center justify-center shadow-xl border-2 border-white/25">
               <Play className="w-6 h-6 sm:w-7 sm:h-7 ml-0.5 fill-current" />
             </span>
             {!hasStarted && (
@@ -211,8 +215,8 @@ const SiteVideoPlayerInner: React.FC<SiteVideoPlayerProps> = ({
         {/* Bottom Interactive Controls Bar */}
         {!hasError && (
           <div
-            className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/65 to-transparent px-3 pt-6 pb-2.5 text-white ${
-              compact ? 'pb-14' : ''
+            className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/65 to-transparent px-3 pt-6 text-white ${
+              compact ? 'pb-14' : 'pb-2.5'
             }`}
           >
             {/* Progress Slider */}
@@ -224,7 +228,7 @@ const SiteVideoPlayerInner: React.FC<SiteVideoPlayerProps> = ({
               value={Math.min(currentTime, duration || 12)}
               onChange={(e) => handleSeek(Number(e.target.value))}
               aria-label="Posuvník přehrávání videa"
-              className="w-full h-1.5 mb-2 accent-[#F07818] cursor-pointer rounded-lg bg-white/25"
+              className="w-full h-1.5 mb-2 accent-[#C2560A] cursor-pointer rounded-lg bg-white/25"
             />
 
             <div className="flex items-center justify-between gap-2 text-xs">
@@ -294,7 +298,7 @@ const SiteVideoPlayerInner: React.FC<SiteVideoPlayerProps> = ({
         <div className="mt-4 space-y-2.5">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="font-bold text-[#17232D] flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-[#F07818]" />
+              <Clock className="w-3.5 h-3.5 text-[#B84F00]" />
               <span>Kapitoly časosběru (kliknutím přeskočíte na fázi stavby):</span>
             </span>
           </div>

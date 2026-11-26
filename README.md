@@ -23,7 +23,10 @@ Produkční webová aplikace stavební party **STAVPARTA** (sídlo Zábřeh na M
 Zkopírujte `.env.example` do `.env` a nastavte hodnoty:
 
 - `GEMINI_API_KEY` – API klíč pro Gemini (povinné pro běh AI chatového asistenta).
-- `APP_URL` – Veřejná URL nasazené aplikace.
+- `GEMINI_MODEL` – Název modelu Gemini pro `/api/chat` (výchozí `gemini-4-hydrogen`).
+- `CHAT_DAILY_LIMIT` / `CHAT_DAILY_IP_LIMIT` – Denní globální / per-IP limit dotazů na chatového asistenta (výchozí `300` / `40`).
+- `APP_URL` / `ALLOWED_ORIGINS` – Veřejná URL nasazené aplikace a volitelný seznam povolených CORS originů.
+- `TRUST_PROXY` – Nastavení Express `trust proxy` dle hostingu (výchozí `1` pro reverzní proxy, případně `false` / `loopback`).
 - `PORT` – Port serveru (výchozí `3000`).
 - `DATA_DIR` – Adresář pro SQLite databázi `stavparta.db` (výchozí `./data`).
 - `UPLOAD_DIR` – Adresář pro nahrané přílohy k poptávkám mimo veřejnou složku (výchozí `./uploads`).
@@ -31,6 +34,8 @@ Zkopírujte `.env.example` do `.env` a nastavte hodnoty:
 - `SESSION_SECRET` – Volitelný HMAC klíč pro dodatečné zabezpečení session tokenů v databázi.
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `NOTIFY_EMAIL` – Nastavení odchozí pošty pro upozornění na nové poptávky a automatické potvrzení zákazníkovi.
 - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` – Volitelná okamžitá notifikace o nové poptávce přes Telegram.
+- `VITE_DEMO_MODE` – Nastavte `"true"` pouze pokud chcete na webu zobrazit předvýrobní banner `[DEMO REŽIM]` a štítky `DEMO – NEPUBLIKOVAT` (výchozí `"false"`).
+
 
 ## Příkazy pro vývoj a nasazení
 

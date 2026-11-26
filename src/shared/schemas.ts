@@ -108,11 +108,13 @@ export const newsletterSubscribeSchema = z.object({
   honeypot: z.string().optional(),
 });
 
-export type NewsletterSubscribePayload = z.infer<typeof newsletterSubscribeSchema>;
-
 export const chatMessageSchema = z.object({
   role: z.enum(['user', 'model']),
-  text: z.string().trim().min(1, 'Zpráva nesmí být prázdná.').max(1500, 'Dotaz je příliš dlouhý.'),
+  text: z
+    .string()
+    .trim()
+    .min(1, 'Zpráva nesmí být prázdná.')
+    .max(600, 'Dotaz může mít maximálně 600 znaků.'),
 });
 
 export const chatServiceContextSchema = z.object({
@@ -127,7 +129,7 @@ export const chatPayloadSchema = z.object({
   messages: z
     .array(chatMessageSchema)
     .min(1, 'Zadejte prosím svůj dotaz.')
-    .max(20, 'Konverzace je příliš dlouhá.'),
+    .max(12, 'Konverzace může obsahovat maximálně 12 posledních zpráv.'),
   appContext: z
     .object({
       companyName: z.string().max(200).optional(),
@@ -142,19 +144,206 @@ export const chatPayloadSchema = z.object({
     .optional(),
 });
 
-export type ChatRequestPayload = z.infer<typeof chatPayloadSchema>;
+export const chatResponseSchema = z.object({
+  reply: z.string().trim().min(1).max(2500),
+  suggestLeadForm: z.boolean(),
+  suggestedServiceId: z.string().trim().max(80),
+  suggestedPrefillSummary: z.string().trim().max(500),
+});
+
+export type ChatResponsePayload = z.infer<typeof chatResponseSchema>;
+
+// Strict schemas for database backup / restore
+export const siteSettingsSchema = z.object({
+  companyName: z.string().trim().min(1).max(200),
+  brandName: z.string().trim().min(1).max(120),
+  slogan: z.string().max(240),
+  motto: z.string().max(400),
+  phone: z.string().max(60),
+  email: z.string().max(180),
+  ico: z.string().max(60),
+  dic: z.string().max(60),
+  isVatPayer: z.boolean().optional(),
+  certificationNumber: z.string().max(160).optional(),
+  warrantyMonths: z.number().int().min(0).max(240).optional(),
+  headquarters: z.string().max(160).optional(),
+  operatingRegion: z.string().max(200),
+  primaryLocations: z.array(z.string().max(120)).max(30),
+  workingHours: z.string().max(200),
+  addressNotice: z.string().max(400),
+  seoTitle: z.string().max(240),
+  seoDescription: z.string().max(500),
+  isPublicLaunchReady: z.boolean(),
+  notifyEmailEnabled: z.boolean().optional(),
+  notifyEmailAddress: z.string().max(180).optional(),
+  chatPricingSummary: z.string().max(2000).optional(),
+  chatTimelineSummary: z.string().max(2000).optional(),
+  chatPaymentTerms: z.string().max(2000).optional(),
+});
+
+export const serviceItemSchema = z.object({
+  id: z.string().trim().min(1).max(80),
+  slug: z.string().trim().min(1).max(160),
+  title: z.string().trim().min(1).max(200),
+  category: z.string().trim().min(1).max(120),
+  shortDescription: z.string().max(1000),
+  fullDescription: z.string().max(6000),
+  iconName: z.string().max(80),
+  order: z.number().int().min(0).max(999),
+  isActive: z.boolean(),
+  image: z.string().max(500).optional(),
+  features: z.array(z.string().max(500)).optional(),
+  workflowSteps: z
+    .array(
+      z.object({
+        step: z.string().max(20),
+        title: z.string().max(200),
+        description: z.string().max(1000),
+      })
+    )
+    .optional(),
+  faq: z
+    .array(
+      z.object({
+        question: z.string().max(400),
+        answer: z.string().max(2000),
+      })
+    )
+    .optional(),
+  safetyNotice: z.string().max(1000).optional(),
+  relatedServiceIds: z.array(z.string().max(80)).optional(),
+  metaTitle: z.string().max(240),
+  metaDescription: z.string().max(500),
+});
+
+export const projectSchema = z.object({
+  id: z.string().trim().min(1).max(80),
+  slug: z.string().trim().min(1).max(160),
+  title: z.string().trim().min(1).max(240),
+  description: z.string().max(4000),
+  serviceId: z.string().trim().min(1).max(80),
+  serviceName: z.string().trim().min(1).max(200),
+  location: z.string().trim().min(1).max(180),
+  year: z.string().max(20).optional(),
+  isDemo: z.boolean(),
+  status: z.enum(['published', 'draft', 'hidden']),
+  order: z.number().int().min(0).max(999),
+  photos: z.array(
+    z.object({
+      id: z.string().trim().min(1).max(80),
+      url: z.string().trim().min(1).max(500),
+      stage: z.enum(['pred', 'behem', 'po']),
+      stageLabel: z.string().max(100),
+      caption: z.string().max(600),
+      isCover: z.boolean().optional(),
+    })
+  ),
+  video: z
+    .object({
+      url: z.string().trim().min(1).max(500),
+      posterUrl: z.string().max(500),
+      title: z.string().max(240),
+      durationLabel: z.string().max(40),
+      summary: z.string().max(1000),
+      chapters: z
+        .array(
+          z.object({
+            timeSec: z.number().nonnegative(),
+            label: z.string().max(120),
+            description: z.string().max(400).optional(),
+          })
+        )
+        .optional(),
+    })
+    .optional(),
+});
+
+export const testimonialSchema = z.object({
+  id: z.string().trim().min(1).max(80),
+  clientName: z.string().trim().min(1).max(160),
+  location: z.string().max(160),
+  projectType: z.string().max(200),
+  text: z.string().trim().min(1).max(3000),
+  rating: z.number().int().min(1).max(5),
+  year: z.string().max(20),
+  hasConsent: z.boolean(),
+  isPublished: z.boolean(),
+  isDemo: z.boolean(),
+});
+
+export const blogPostSchema = z.object({
+  id: z.string().trim().min(1).max(80),
+  slug: z.string().trim().min(1).max(200),
+  title: z.string().trim().min(1).max(260),
+  category: z.enum([
+    'Trendy v rekonstrukcích',
+    'Údržba interiéru',
+    'Materiály pro bytová jádra',
+  ]),
+  publishedAt: z.string().trim().min(1).max(40),
+  readTimeMinutes: z.number().int().min(1).max(60),
+  excerpt: z.string().max(1200),
+  contentSections: z.array(
+    z.object({
+      heading: z.string().max(240),
+      text: z.string().max(6000),
+    })
+  ),
+  practicalTips: z.array(z.string().max(600)),
+  image: z.string().max(500),
+  imageAlt: z.string().max(300),
+  relatedServiceId: z.string().max(80),
+  author: z.string().max(180),
+  isPublished: z.boolean(),
+  featured: z.boolean().optional(),
+});
+
+export const leadNoteSchema = z.object({
+  id: z.string().trim().min(1).max(80),
+  author: z.string().trim().min(1).max(120),
+  text: z.string().max(4000),
+  createdAt: z.string().trim().min(1).max(60),
+});
+
+export const leadDumpSchema = z.object({
+  id: z.string().trim().min(1).max(80),
+  createdAt: z.string().trim().min(1).max(60),
+  name: z.string().trim().min(1).max(160),
+  email: z.string().trim().email().max(180),
+  phone: z.string().max(60).optional(),
+  serviceId: z.string().trim().min(1).max(80),
+  serviceTitle: z.string().trim().min(1).max(200),
+  location: z.string().max(180),
+  preferredTimeline: z.string().max(160).optional(),
+  description: z.string().max(6000),
+  attachments: z.array(leadAttachmentSchema).optional(),
+  gdprConsent: z.boolean(),
+  status: leadStatusSchema,
+  notes: z.array(leadNoteSchema).default([]),
+  coreDetails: leadCoreDetailsSchema.optional(),
+});
+
+export const newsletterSubscriberDumpSchema = z.object({
+  id: z.string().trim().min(1).max(80),
+  email: z.string().trim().email().max(180),
+  createdAt: z.string().trim().min(1).max(60),
+  consent: z.boolean(),
+  source: z.string().max(80).optional(),
+});
 
 export const fullDatabaseDumpSchema = z.object({
   exportedAt: z.string().optional(),
   version: z.string().optional(),
-  settings: z.record(z.string(), z.unknown()).optional(),
-  services: z.array(z.record(z.string(), z.unknown())).optional(),
-  projects: z.array(z.record(z.string(), z.unknown())).optional(),
-  testimonials: z.array(z.record(z.string(), z.unknown())).optional(),
-  leads: z.array(z.record(z.string(), z.unknown())).optional(),
-  subscribers: z.array(z.record(z.string(), z.unknown())).optional(),
-  blogPosts: z.array(z.record(z.string(), z.unknown())).optional(),
+  settings: siteSettingsSchema.partial().optional(),
+  services: z.array(serviceItemSchema).optional(),
+  projects: z.array(projectSchema).optional(),
+  testimonials: z.array(testimonialSchema).optional(),
+  leads: z.array(leadDumpSchema).optional(),
+  subscribers: z.array(newsletterSubscriberDumpSchema).optional(),
+  blogPosts: z.array(blogPostSchema).optional(),
 });
+
+export type FullDatabaseDump = z.infer<typeof fullDatabaseDumpSchema>;
 
 export const adminLoginSchema = z.object({
   username: z.string().trim().min(1, 'Zadejte uživatelské jméno.').max(60).default('admin'),
@@ -174,6 +363,15 @@ export const adminChangePasswordSchema = z.object({
     .string()
     .min(8, 'Nové heslo musí mít alespoň 8 znaků.')
     .max(200, 'Nové heslo může mít maximálně 200 znaků.'),
+});
+
+export const gdprEraseSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .min(1, 'Zadejte e-mailovou adresu pro výmaz.')
+    .email('Zadejte platnou e-mailovou adresu.')
+    .max(180),
 });
 
 export function extractZodFieldErrors(error: z.ZodError): Record<string, string> {

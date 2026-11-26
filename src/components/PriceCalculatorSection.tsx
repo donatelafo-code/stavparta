@@ -11,6 +11,7 @@ import {
   Copy,
 } from 'lucide-react';
 import { LeadCoreDetails } from '../types';
+import { getPreferredScrollBehavior } from '../hooks/useModalAccessibility';
 
 export interface CalculatedLeadData {
   serviceId: string;
@@ -111,7 +112,6 @@ export const PriceCalculatorSection: React.FC<PriceCalculatorSectionProps> = ({
   }, [
     activeMode,
     coreType,
-    coreLayout,
     coreSanitary,
     coreTileQuality,
     aptSize,
@@ -167,10 +167,10 @@ export const PriceCalculatorSection: React.FC<PriceCalculatorSectionProps> = ({
       },
     });
 
-    // Smooth scroll to lead form
+    // Smooth scroll to lead form (respects prefers-reduced-motion)
     const formElement = document.getElementById('poptavka');
     if (formElement) {
-      formElement.scrollIntoView({ behavior: 'smooth' });
+      formElement.scrollIntoView({ behavior: getPreferredScrollBehavior() });
     }
   };
 
@@ -205,7 +205,7 @@ export const PriceCalculatorSection: React.FC<PriceCalculatorSectionProps> = ({
     lines.push('Orientační finanční odhad:');
     lines.push(`• Předpokládané cenové rozpětí: ${calculation.min.toLocaleString('cs-CZ')} – ${calculation.max.toLocaleString('cs-CZ')} Kč`);
     lines.push(`• Odhadovaná doba realizace: ${calculation.days}`);
-    lines.push('• Záruka na dílo: až 36 měsíců');
+    lines.push('• Záruka na dílo: dle písemné smlouvy o dílo');
     lines.push('• Centrála & působnost: Zábřeh na Moravě | Olomoucký kraj (Šumperk, Mohelnice, Olomouc, Prostějov, Přerov)');
     lines.push('');
     lines.push('Upozornění: Jedná se o nezávaznou kalkulaci. Konečnou pevnou cenu stanovíme zdarma po osobním zaměření na místě zakázky.');
@@ -244,7 +244,7 @@ export const PriceCalculatorSection: React.FC<PriceCalculatorSectionProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-8">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-12">
-          <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#F07818] mb-2">
+          <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#B84F00] mb-2">
             <Calculator className="w-4 h-4" />
             <span>Transparentní rozpočty</span>
             <span className="text-slate-400">/</span>
@@ -264,10 +264,11 @@ export const PriceCalculatorSection: React.FC<PriceCalculatorSectionProps> = ({
           {/* Mode Switcher Tabs */}
           <div className="grid grid-cols-2 bg-[#17232D] text-white p-1.5 sm:p-2 gap-1.5">
             <button
+              type="button"
               onClick={() => setActiveMode('core')}
               className={`py-3 px-2 sm:px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                 activeMode === 'core'
-                  ? 'bg-[#F07818] text-white shadow-md'
+                  ? 'bg-[#C2560A] text-white shadow-md'
                   : 'text-slate-300 hover:text-white hover:bg-[#263746]'
               }`}
             >
@@ -276,10 +277,11 @@ export const PriceCalculatorSection: React.FC<PriceCalculatorSectionProps> = ({
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveMode('apartment')}
               className={`py-3 px-2 sm:px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                 activeMode === 'apartment'
-                  ? 'bg-[#F07818] text-white shadow-md'
+                  ? 'bg-[#C2560A] text-white shadow-md'
                   : 'text-slate-300 hover:text-white hover:bg-[#263746]'
               }`}
             >
@@ -295,16 +297,17 @@ export const PriceCalculatorSection: React.FC<PriceCalculatorSectionProps> = ({
               {/* MODE 1: CORE */}
               {activeMode === 'core' && (
                 <>
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                  <div role="group" aria-labelledby="calc-core-type-label">
+                    <div id="calc-core-type-label" className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">
                       Původní stav jádra
-                    </label>
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                       <button
+                        type="button"
                         onClick={() => setCoreType('umakart')}
                         className={`p-3 rounded-xl border text-left text-xs font-semibold cursor-pointer transition-all ${
                           coreType === 'umakart'
-                            ? 'border-[#F07818] bg-orange-50/50 text-[#17232D] shadow-xs ring-1 ring-[#F07818]'
+                            ? 'border-[#C2560A] bg-orange-50/50 text-[#17232D] shadow-xs ring-1 ring-[#C2560A]'
                             : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
                         }`}
                       >
@@ -312,10 +315,11 @@ export const PriceCalculatorSection: React.FC<PriceCalculatorSectionProps> = ({
                         <div className="text-[11px] text-slate-500 mt-0.5">Demolice, odvoz a nová vyzdívka</div>
                       </button>
                       <button
+                        type="button"
                         onClick={() => setCoreType('masonry')}
                         className={`p-3 rounded-xl border text-left text-xs font-semibold cursor-pointer transition-all ${
                           coreType === 'masonry'
-                            ? 'border-[#F07818] bg-orange-50/50 text-[#17232D] shadow-xs ring-1 ring-[#F07818]'
+                            ? 'border-[#C2560A] bg-orange-50/50 text-[#17232D] shadow-xs ring-1 ring-[#C2560A]'
                             : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
                         }`}
                       >
@@ -325,16 +329,17 @@ export const PriceCalculatorSection: React.FC<PriceCalculatorSectionProps> = ({
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                  <div role="group" aria-labelledby="calc-core-layout-label">
+                    <div id="calc-core-layout-label" className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">
                       Dispozice koupelny a WC
-                    </label>
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                       <button
+                        type="button"
                         onClick={() => setCoreLayout('combined')}
                         className={`p-3 rounded-xl border text-left text-xs font-semibold cursor-pointer transition-all ${
                           coreLayout === 'combined'
-                            ? 'border-[#F07818] bg-orange-50/50 text-[#17232D] ring-1 ring-[#F07818]'
+                            ? 'border-[#C2560A] bg-orange-50/50 text-[#17232D] ring-1 ring-[#C2560A]'
                             : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
                         }`}
                       >
@@ -342,10 +347,11 @@ export const PriceCalculatorSection: React.FC<PriceCalculatorSectionProps> = ({
                         <div className="text-[11px] text-slate-500 mt-0.5">Více prostoru pro pračku a sprchu</div>
                       </button>
                       <button
+                        type="button"
                         onClick={() => setCoreLayout('separate')}
                         className={`p-3 rounded-xl border text-left text-xs font-semibold cursor-pointer transition-all ${
                           coreLayout === 'separate'
-                            ? 'border-[#F07818] bg-orange-50/50 text-[#17232D] ring-1 ring-[#F07818]'
+                            ? 'border-[#C2560A] bg-orange-50/50 text-[#17232D] ring-1 ring-[#C2560A]'
                             : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
                         }`}
                       >
@@ -355,16 +361,17 @@ export const PriceCalculatorSection: React.FC<PriceCalculatorSectionProps> = ({
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                  <div role="group" aria-labelledby="calc-core-sanitary-label">
+                    <div id="calc-core-sanitary-label" className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">
                       Koupací zóna
-                    </label>
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                       <button
+                        type="button"
                         onClick={() => setCoreSanitary('walkin')}
                         className={`p-3 rounded-xl border text-left text-xs font-semibold cursor-pointer transition-all ${
                           coreSanitary === 'walkin'
-                            ? 'border-[#F07818] bg-orange-50/50 text-[#17232D] ring-1 ring-[#F07818]'
+                            ? 'border-[#C2560A] bg-orange-50/50 text-[#17232D] ring-1 ring-[#C2560A]'
                             : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
                         }`}
                       >
@@ -372,10 +379,11 @@ export const PriceCalculatorSection: React.FC<PriceCalculatorSectionProps> = ({
                         <div className="text-[11px] text-slate-500 mt-0.5">Bez vaničky se spádovým žlabem</div>
                       </button>
                       <button
+                        type="button"
                         onClick={() => setCoreSanitary('tub')}
                         className={`p-3 rounded-xl border text-left text-xs font-semibold cursor-pointer transition-all ${
                           coreSanitary === 'tub'
-                            ? 'border-[#F07818] bg-orange-50/50 text-[#17232D] ring-1 ring-[#F07818]'
+                            ? 'border-[#C2560A] bg-orange-50/50 text-[#17232D] ring-1 ring-[#C2560A]'
                             : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
                         }`}
                       >
@@ -385,17 +393,18 @@ export const PriceCalculatorSection: React.FC<PriceCalculatorSectionProps> = ({
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                  <div role="group" aria-labelledby="calc-core-tiles-label">
+                    <div id="calc-core-tiles-label" className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">
                       Obklady & Příplatkové práce
-                    </label>
+                    </div>
                     <div className="space-y-2">
-                      <label className="flex items-center gap-3 p-2.5 bg-white rounded-lg border border-slate-200 cursor-pointer">
+                      <label htmlFor="calc-large-format" className="flex items-center gap-3 p-2.5 bg-white rounded-lg border border-slate-200 cursor-pointer">
                         <input
+                          id="calc-large-format"
                           type="checkbox"
                           checked={coreTileQuality === 'large_format'}
                           onChange={(e) => setCoreTileQuality(e.target.checked ? 'large_format' : 'standard')}
-                          className="w-4 h-4 text-[#F07818] rounded"
+                          className="w-4 h-4 accent-[#C2560A] rounded"
                         />
                         <span className="text-xs text-slate-700 font-medium">
                           Velkoformátové obklady s kamenickými rohy (jolly 45°)
@@ -409,18 +418,19 @@ export const PriceCalculatorSection: React.FC<PriceCalculatorSectionProps> = ({
               {/* MODE 2: APARTMENT */}
               {activeMode === 'apartment' && (
                 <>
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                  <div role="group" aria-labelledby="calc-apt-size-label">
+                    <div id="calc-apt-size-label" className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">
                       Dispozice bytu
-                    </label>
+                    </div>
                     <div className="grid grid-cols-4 gap-2">
                       {(['1kk', '2kk', '3kk', '4kk'] as const).map((size) => (
                         <button
                           key={size}
+                          type="button"
                           onClick={() => setAptSize(size)}
                           className={`py-3 rounded-xl border text-center text-xs font-bold uppercase cursor-pointer transition-all ${
                             aptSize === size
-                              ? 'border-[#F07818] bg-orange-50 text-[#F07818] ring-1 ring-[#F07818]'
+                              ? 'border-[#C2560A] bg-orange-50 text-[#9E4306] ring-1 ring-[#C2560A]'
                               : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
                           }`}
                         >
@@ -430,16 +440,17 @@ export const PriceCalculatorSection: React.FC<PriceCalculatorSectionProps> = ({
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                  <div role="group" aria-labelledby="calc-apt-scope-label">
+                    <div id="calc-apt-scope-label" className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">
                       Rozsah prací
-                    </label>
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                       <button
+                        type="button"
                         onClick={() => setAptScope('turnkey')}
                         className={`p-3 rounded-xl border text-left text-xs font-semibold cursor-pointer transition-all ${
                           aptScope === 'turnkey'
-                            ? 'border-[#F07818] bg-orange-50 text-[#17232D] ring-1 ring-[#F07818]'
+                            ? 'border-[#C2560A] bg-orange-50 text-[#17232D] ring-1 ring-[#C2560A]'
                             : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
                         }`}
                       >
@@ -447,10 +458,11 @@ export const PriceCalculatorSection: React.FC<PriceCalculatorSectionProps> = ({
                         <div className="text-[11px] text-slate-500 mt-0.5">Včetně jádra, omítek a podlah</div>
                       </button>
                       <button
+                        type="button"
                         onClick={() => setAptScope('interior_only')}
                         className={`p-3 rounded-xl border text-left text-xs font-semibold cursor-pointer transition-all ${
                           aptScope === 'interior_only'
-                            ? 'border-[#F07818] bg-orange-50 text-[#17232D] ring-1 ring-[#F07818]'
+                            ? 'border-[#C2560A] bg-orange-50 text-[#17232D] ring-1 ring-[#C2560A]'
                             : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
                         }`}
                       >
@@ -460,28 +472,30 @@ export const PriceCalculatorSection: React.FC<PriceCalculatorSectionProps> = ({
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                  <div role="group" aria-labelledby="calc-apt-extras-label">
+                    <div id="calc-apt-extras-label" className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">
                       Doplňkové úpravy
-                    </label>
+                    </div>
                     <div className="space-y-2">
-                      <label className="flex items-center gap-3 p-2.5 bg-white rounded-lg border border-slate-200 cursor-pointer">
+                      <label htmlFor="calc-apt-ceilings" className="flex items-center gap-3 p-2.5 bg-white rounded-lg border border-slate-200 cursor-pointer">
                         <input
+                          id="calc-apt-ceilings"
                           type="checkbox"
                           checked={aptCeilings}
                           onChange={(e) => setAptCeilings(e.target.checked)}
-                          className="w-4 h-4 text-[#F07818] rounded"
+                          className="w-4 h-4 accent-[#C2560A] rounded"
                         />
                         <span className="text-xs text-slate-700 font-medium">
                           Snížené sádrokartonové podhledy s tepelnou izolací
                         </span>
                       </label>
-                      <label className="flex items-center gap-3 p-2.5 bg-white rounded-lg border border-slate-200 cursor-pointer">
+                      <label htmlFor="calc-apt-flooring" className="flex items-center gap-3 p-2.5 bg-white rounded-lg border border-slate-200 cursor-pointer">
                         <input
+                          id="calc-apt-flooring"
                           type="checkbox"
                           checked={aptFlooring}
                           onChange={(e) => setAptFlooring(e.target.checked)}
-                          className="w-4 h-4 text-[#F07818] rounded"
+                          className="w-4 h-4 accent-[#C2560A] rounded"
                         />
                         <span className="text-xs text-slate-700 font-medium">
                           Nivelační stěrka a pokládka vinylové podlahy s lištováním
@@ -505,7 +519,7 @@ export const PriceCalculatorSection: React.FC<PriceCalculatorSectionProps> = ({
                       type="button"
                       onClick={handleCopyToClipboard}
                       title="Zkopírovat kalkulaci do schránky"
-                      className="p-1 text-slate-400 hover:text-[#F07818] hover:bg-slate-100 rounded transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-medium"
+                      className="p-1 text-slate-500 hover:text-[#B84F00] hover:bg-slate-100 rounded transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-medium"
                     >
                       {isCopied ? (
                         <>
@@ -530,34 +544,34 @@ export const PriceCalculatorSection: React.FC<PriceCalculatorSectionProps> = ({
                   <div className="text-2xl sm:text-3xl font-black text-[#17232D] tracking-tight">
                     {calculation.min.toLocaleString('cs-CZ')} – {calculation.max.toLocaleString('cs-CZ')} Kč
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-1">
+                  <p className="text-[11px] text-slate-500 mt-1">
                     Cena zahrnuje odbornou práci, hrubý materiál, likvidaci suti i úklid.
                   </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100 text-xs">
                   <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-[#F07818]" />
+                    <Clock className="w-4 h-4 text-[#B84F00]" />
                     <div>
-                      <div className="text-[10px] text-slate-400">Předpokládaná doba:</div>
+                      <div className="text-[10px] text-slate-500">Předpokládaná doba:</div>
                       <div className="font-bold text-slate-800">{calculation.days}</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4 text-emerald-600" />
                     <div>
-                      <div className="text-[10px] text-slate-400">Záruka na práci:</div>
-                      <div className="font-bold text-slate-800">až 36 měsíců</div>
+                      <div className="text-[10px] text-slate-500">Záruka na práci:</div>
+                      <div className="font-bold text-slate-800">Dle smlouvy o dílo</div>
                     </div>
                   </div>
                 </div>
 
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 text-[11px] text-slate-600 space-y-1">
                   <div className="flex items-start gap-1.5 font-bold text-slate-700">
-                    <Info className="w-3.5 h-3.5 text-[#F07818] shrink-0 mt-0.5" />
+                    <Info className="w-3.5 h-3.5 text-[#B84F00] shrink-0 mt-0.5" />
                     <span>Garance férového jednání:</span>
                   </div>
-                  <p className="text-slate-500 leading-relaxed">
+                  <p className="text-slate-600 leading-relaxed">
                     Každá nemovitost má svá specifika. Přesnou pevnou cenu vám spočítáme zdarma po osobním
                     zaměření přímo na stavbě v Olomouckém kraji.
                   </p>
@@ -569,7 +583,7 @@ export const PriceCalculatorSection: React.FC<PriceCalculatorSectionProps> = ({
                 <button
                   type="button"
                   onClick={handleApplyToLead}
-                  className="w-full py-3.5 px-4 bg-[#F07818] hover:bg-[#d9660e] text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer group"
+                  className="w-full py-3.5 px-4 bg-[#C2560A] hover:bg-[#9E4306] text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer group"
                 >
                   <span>Přenést konfiguraci do poptávky</span>
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />

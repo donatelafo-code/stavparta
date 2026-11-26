@@ -4,10 +4,8 @@ import {
   Scale,
   HandCoins,
   ShieldCheck,
-  CheckCircle,
   CalendarCheck,
   Camera,
-  Layers,
 } from 'lucide-react';
 
 export const WhyUsSection: React.FC = () => {
@@ -48,7 +46,7 @@ export const WhyUsSection: React.FC = () => {
     <section className="py-20 bg-[#F1F4F6] border-b border-slate-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-8">
         <div className="text-center max-w-2xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#F07818] mb-2">
+          <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#B84F00] mb-2">
             <span>Principy naší práce</span>
             <span className="text-slate-400">/</span>
             <span className="text-slate-600 font-medium">Poctivé řemeslo</span>
@@ -68,10 +66,10 @@ export const WhyUsSection: React.FC = () => {
             return (
               <div
                 key={idx}
-                className="bg-white rounded-xl p-6 border border-slate-200 shadow-xs hover:border-[#F07818]/50 transition-colors flex flex-col justify-between"
+                className="bg-white rounded-xl p-6 border border-slate-200 shadow-xs hover:border-[#C2560A]/50 transition-colors flex flex-col justify-between"
               >
                 <div>
-                  <div className="w-10 h-10 rounded-lg bg-[#F07818]/10 text-[#F07818] flex items-center justify-center mb-4">
+                  <div className="w-10 h-10 rounded-lg bg-[#C2560A]/10 text-[#B84F00] flex items-center justify-center mb-4">
                     <Icon className="w-5 h-5" />
                   </div>
                   <h3 className="text-base font-bold text-[#17232D] mb-2 leading-snug">

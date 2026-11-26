@@ -38,6 +38,7 @@ interface LeadFormSectionProps {
   prefilledData?: CalculatedLeadData | null;
   prefilledNote?: LeadPrefillNote | null;
   onOpenGdpr: () => void;
+  onOpenTerms?: () => void;
   onLeadCreated?: (lead: Lead) => void;
 }
 
@@ -59,6 +60,7 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
   prefilledData,
   prefilledNote,
   onOpenGdpr,
+  onOpenTerms,
   onLeadCreated,
 }) => {
   // Main form fields
@@ -72,6 +74,7 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
   const [preferredTimeline, setPreferredTimeline] = useState('');
   const [description, setDescription] = useState('');
   const [attachments, setAttachments] = useState<LeadAttachment[]>([]);
+  const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [gdprConsent, setGdprConsent] = useState(false);
 
   // Dynamic conditional questions: Apartment core / bathroom / WC
@@ -90,6 +93,7 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
   // Anti-spam honeypot and timing
   const [honeypot, setHoneypot] = useState('');
   const formLoadTimeRef = useRef<number>(0);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Error handling & submission state
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -149,11 +153,23 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
 
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
     const maxSizeBytes = 5 * 1024 * 1024; // 5 MB
+    const maxFiles = 5;
+
+    const incomingFiles = Array.from(files);
+    if (attachments.length + incomingFiles.length > maxFiles) {
+      setErrors((prev) => ({
+        ...prev,
+        attachments: `Můžete přiložit maximálně ${maxFiles} souborů.`,
+      }));
+      e.target.value = '';
+      return;
+    }
 
     const newAttachments: LeadAttachment[] = [];
+    const validRawFiles: File[] = [];
     let fileError = '';
 
-    Array.from(files).forEach((file) => {
+    incomingFiles.forEach((file) => {
       if (!allowedTypes.includes(file.type)) {
         fileError = 'Podporovány jsou pouze obrázky (JPG, PNG, WebP) nebo PDF dokumentace.';
         return;
@@ -163,9 +179,10 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
         return;
       }
 
+      validRawFiles.push(file);
       newAttachments.push({
         name: file.name,
-        size: Math.round(file.size / 1024),
+        size: Math.max(1, Math.round(file.size / 1024)),
         type: file.type,
       });
     });
@@ -179,11 +196,14 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
         return copy;
       });
       setAttachments((prev) => [...prev, ...newAttachments]);
+      setAttachmentFiles((prev) => [...prev, ...validRawFiles]);
     }
+    e.target.value = '';
   };
 
   const removeAttachment = (index: number) => {
     setAttachments((prev) => prev.filter((_, i) => i !== index));
+    setAttachmentFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const validate = (): boolean => {
@@ -251,21 +271,24 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
       : undefined;
 
     try {
-      const response = await api.submitLead({
-        name: name.trim(),
-        email: email.trim(),
-        phone: phone.trim() || undefined,
-        serviceId: selectedServiceId,
-        serviceTitle,
-        location: location.trim(),
-        preferredTimeline: preferredTimeline.trim() || undefined,
-        description: description.trim(),
-        attachments: attachments.length > 0 ? attachments : undefined,
-        gdprConsent: true,
-        coreDetails: coreDetailsData,
-        honeypot,
-        formLoadedAt: formLoadTimeRef.current || undefined,
-      });
+      const response = await api.submitLead(
+        {
+          name: name.trim(),
+          email: email.trim(),
+          phone: phone.trim() || undefined,
+          serviceId: selectedServiceId,
+          serviceTitle,
+          location: location.trim(),
+          preferredTimeline: preferredTimeline.trim() || undefined,
+          description: description.trim(),
+          attachments: attachments.length > 0 ? attachments : undefined,
+          gdprConsent: true,
+          coreDetails: coreDetailsData,
+          honeypot,
+          formLoadedAt: formLoadTimeRef.current || undefined,
+        },
+        attachmentFiles
+      );
 
       setSubmittedLeadId(response.lead.id);
       onLeadCreated?.(response.lead);
@@ -278,6 +301,10 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
       setPreferredTimeline('');
       setDescription('');
       setAttachments([]);
+      setAttachmentFiles([]);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       setGdprConsent(false);
     } catch (err) {
       if (err instanceof ApiError) {
@@ -304,7 +331,7 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
           {/* Left Column: Direct Contacts */}
           <div className="lg:col-span-5 space-y-8">
             <div>
-              <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#F07818] mb-2">
+              <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#B84F00] mb-2">
                 <span>Rychlé spojení</span>
                 <span className="text-slate-400">/</span>
                 <span className="text-slate-600 font-medium">Nezávazná poptávka</span>
@@ -321,24 +348,26 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
 
             {/* Direct Cards */}
             <div className="space-y-4">
-              <a
-                href={`tel:${settings.phone.replace(/\s+/g, '')}`}
-                className="flex items-center gap-4 p-4 bg-white rounded-xl border border-slate-200 shadow-xs hover:border-[#F07818] transition-all group"
-              >
-                <div className="w-12 h-12 rounded-lg bg-[#F07818]/10 flex items-center justify-center text-[#F07818] group-hover:bg-[#F07818] group-hover:text-white transition-colors">
-                  <Phone className="w-6 h-6" />
-                </div>
-                <div>
-                  <span className="text-xs text-slate-500 font-medium block">Telefon na stavbu:</span>
-                  <span className="text-base font-bold text-[#17232D] group-hover:text-[#F07818] transition-colors">
-                    {settings.phone}
-                  </span>
-                </div>
-              </a>
+              {settings.phone.trim() && (
+                <a
+                  href={`tel:${settings.phone.replace(/\s+/g, '')}`}
+                  className="flex items-center gap-4 p-4 bg-white rounded-xl border border-slate-200 shadow-xs hover:border-[#C2560A] transition-all group"
+                >
+                  <div className="w-12 h-12 rounded-lg bg-[#C2560A]/10 flex items-center justify-center text-[#B84F00] group-hover:bg-[#C2560A] group-hover:text-white transition-colors">
+                    <Phone className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <span className="text-xs text-slate-500 font-medium block">Telefon na stavbu:</span>
+                    <span className="text-base font-bold text-[#17232D] group-hover:text-[#B84F00] transition-colors">
+                      {settings.phone}
+                    </span>
+                  </div>
+                </a>
+              )}
 
               <a
                 href={`mailto:${settings.email}`}
-                className="flex items-center gap-4 p-4 bg-white rounded-xl border border-slate-200 shadow-xs hover:border-[#F07818] transition-all group"
+                className="flex items-center gap-4 p-4 bg-white rounded-xl border border-slate-200 shadow-xs hover:border-[#C2560A] transition-all group"
               >
                 <div className="w-12 h-12 rounded-lg bg-[#263746]/10 flex items-center justify-center text-[#263746] group-hover:bg-[#263746] group-hover:text-white transition-colors">
                   <Mail className="w-6 h-6" />
@@ -353,7 +382,7 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
 
               <div className="flex items-start gap-4 p-4 bg-white rounded-xl border border-slate-200 shadow-xs">
                 <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 shrink-0">
-                  <MapPin className="w-6 h-6 text-[#F07818]" />
+                  <MapPin className="w-6 h-6 text-[#B84F00]" />
                 </div>
                 <div>
                   <span className="text-xs text-slate-500 font-medium block">Centrála & sídlo firmy:</span>
@@ -374,8 +403,24 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
                 <span>Poctivé řemeslo & transparentní rozpočet</span>
               </span>
               <p className="text-[11px] text-amber-800 leading-relaxed">
-                Na provedené stavební a obkladačské práce poskytujeme písemnou záruku 36 měsíců
-                včetně položkového rozpočtu bez skrytých vícenákladů.
+                Zakázky realizujeme na základě položkového rozpočtu a písemné smlouvy o dílo (
+                {settings.warrantyMonths && settings.warrantyMonths > 0
+                  ? `záruka ${settings.warrantyMonths} měsíců`
+                  : 'záruční podmínky dle smlouvy o dílo'}
+                ). Prozatím nenabízíme elektrikářské práce ani elektrorevize.
+                {onOpenTerms && (
+                  <>
+                    {' '}
+                    <button
+                      type="button"
+                      onClick={onOpenTerms}
+                      className="underline font-semibold text-amber-900 hover:text-[#B84F00] cursor-pointer"
+                    >
+                      Zobrazit vzorové podmínky
+                    </button>
+                    .
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -434,19 +479,19 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
 
                   {/* Prefilled calculation notice */}
                   {prefilledData && (
-                    <div className="mb-4 p-3.5 bg-orange-50 border border-[#F07818]/40 rounded-xl flex items-center justify-between text-xs text-slate-800 shadow-xs">
+                    <div className="mb-4 p-3.5 bg-orange-50 border border-[#C2560A]/40 rounded-xl flex items-center justify-between text-xs text-slate-800 shadow-xs">
                       <div className="flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-[#F07818] shrink-0" />
+                        <Sparkles className="w-4 h-4 text-[#B84F00] shrink-0" />
                         <div>
                           <div className="font-bold text-[#17232D]">
                             Načtena konfigurace z kalkulačky ({prefilledData.estimateSummary.minPrice.toLocaleString('cs-CZ')} – {prefilledData.estimateSummary.maxPrice.toLocaleString('cs-CZ')} Kč)
                           </div>
-                          <div className="text-[11px] text-slate-500">
+                          <div className="text-[11px] text-slate-600">
                             Orientační doba: {prefilledData.estimateSummary.durationDays}. Specifikace byla přenesena.
                           </div>
                         </div>
                       </div>
-                      <span className="px-2 py-0.5 bg-[#F07818] text-white text-[10px] font-bold rounded shrink-0 hidden sm:inline">
+                      <span className="px-2 py-0.5 bg-[#C2560A] text-white text-[10px] font-bold rounded shrink-0 hidden sm:inline">
                         Aktivní výpočet
                       </span>
                     </div>
@@ -456,12 +501,12 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
                   {prefilledNote && !prefilledData && (
                     <div className="mb-4 p-3.5 bg-slate-50 border border-[#263746]/25 rounded-xl flex items-center justify-between text-xs text-slate-800">
                       <div className="flex items-center gap-2.5">
-                        <Sparkles className="w-4 h-4 text-[#F07818] shrink-0" />
+                        <Sparkles className="w-4 h-4 text-[#B84F00] shrink-0" />
                         <div>
                           <div className="font-bold text-[#17232D]">
                             {prefilledNote.sourceLabel}: {prefilledNote.title}
                           </div>
-                          <div className="text-[11px] text-slate-500">
+                          <div className="text-[11px] text-slate-600">
                             Vybraná služba a poznámka pro konzultaci byly předvyplněny níže.
                           </div>
                         </div>
@@ -471,13 +516,14 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
 
                   {/* Service selector (Primary category) */}
                   <div>
-                    <label className="block text-xs font-bold text-[#17232D] mb-1">
-                      Požadovaná služba / typ prací <span className="text-rose-500">*</span>
+                    <label htmlFor="lead-service" className="block text-xs font-bold text-[#17232D] mb-1">
+                      Požadovaná služba / typ prací <span className="text-rose-600">*</span>
                     </label>
                     <select
+                      id="lead-service"
                       value={selectedServiceId}
                       onChange={(e) => setSelectedServiceId(e.target.value)}
-                      className="w-full px-3.5 py-2.5 text-sm rounded-lg border border-slate-300 bg-white font-semibold text-[#17232D] focus:outline-none focus:border-[#F07818]"
+                      className="w-full px-3.5 py-2.5 text-sm rounded-lg border border-slate-300 bg-white font-semibold text-[#17232D] focus:outline-none focus:border-[#C2560A]"
                     >
                       {FORM_SERVICE_OPTIONS.map((opt) => (
                         <option key={opt.id} value={opt.id}>
@@ -490,18 +536,21 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
                   {/* DYNAMIC QUESTIONS: APARTMENT CORE / BATHROOM / WC */}
                   {isCoreCategory && (
                     <div className="p-4 bg-[#F8FAFC] border border-slate-200 rounded-xl space-y-3">
-                      <div className="flex items-center gap-2 text-xs font-bold text-[#F07818] uppercase tracking-wider">
+                      <div className="flex items-center gap-2 text-xs font-bold text-[#B84F00] uppercase tracking-wider">
                         <Grid className="w-4 h-4" />
                         <span>Upřesnění pro renovaci bytového jádra & koupelny:</span>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                         <div>
-                          <label className="block font-bold text-slate-700 mb-1">Typ bytu / stavby</label>
+                          <label htmlFor="lead-core-property" className="block font-bold text-slate-700 mb-1">
+                            Typ bytu / stavby
+                          </label>
                           <select
+                            id="lead-core-property"
                             value={corePropertyType}
                             onChange={(e) => setCorePropertyType(e.target.value)}
-                            className="w-full px-3 py-2 border rounded-md bg-white"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-md bg-white"
                           >
                             <option value="Panelový byt">Panelový dům (umakartové jádro)</option>
                             <option value="Zděný byt">Cihlový / zděný byt</option>
@@ -510,11 +559,14 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
                         </div>
 
                         <div>
-                          <label className="block font-bold text-slate-700 mb-1">Rozsah renovace</label>
+                          <label htmlFor="lead-core-scope" className="block font-bold text-slate-700 mb-1">
+                            Rozsah renovace
+                          </label>
                           <select
+                            id="lead-core-scope"
                             value={coreScope}
                             onChange={(e) => setCoreScope(e.target.value)}
-                            className="w-full px-3 py-2 border rounded-md bg-white"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-md bg-white"
                           >
                             <option value="Kompletní jádro (koupelna + WC)">Kompletní jádro (koupelna + WC)</option>
                             <option value="Pouze koupelna">Pouze koupelna</option>
@@ -525,11 +577,14 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                         <div>
-                          <label className="block font-bold text-slate-700 mb-1">Změna dispozice / stěn</label>
+                          <label htmlFor="lead-core-disposition" className="block font-bold text-slate-700 mb-1">
+                            Změna dispozice / stěn
+                          </label>
                           <select
+                            id="lead-core-disposition"
                             value={coreDisposition}
                             onChange={(e) => setCoreDisposition(e.target.value)}
-                            className="w-full px-3 py-2 border rounded-md bg-white"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-md bg-white"
                           >
                             <option value="Chci poradit s možnostmi zvětšení">Chci poradit s možnostmi zvětšení</option>
                             <option value="Ano, požaduji posunutí příčky / zvětšení">Ano, plánujeme změnu dispozice</option>
@@ -538,11 +593,14 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
                         </div>
 
                         <div>
-                          <label className="block font-bold text-slate-700 mb-1">Představa a návrh</label>
+                          <label htmlFor="lead-core-design" className="block font-bold text-slate-700 mb-1">
+                            Představa a návrh
+                          </label>
                           <select
+                            id="lead-core-design"
                             value={coreDesignStatus}
                             onChange={(e) => setCoreDesignStatus(e.target.value)}
-                            className="w-full px-3 py-2 border rounded-md bg-white"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-md bg-white"
                           >
                             <option value="Mám hrubou představu">Mám hrubou představu</option>
                             <option value="Mám hotový projekt / vizualizaci">Mám hotový projekt / vizualizaci</option>
@@ -556,46 +614,56 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
                   {/* Name and Email */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-[#17232D] mb-1">
-                        Jméno a příjmení <span className="text-rose-500">*</span>
+                      <label htmlFor="lead-name" className="block text-xs font-bold text-[#17232D] mb-1">
+                        Jméno a příjmení <span className="text-rose-600">*</span>
                       </label>
                       <input
+                        id="lead-name"
                         type="text"
+                        required
+                        aria-required="true"
+                        aria-invalid={Boolean(errors.name)}
+                        aria-describedby={errors.name ? 'lead-error-name' : undefined}
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         placeholder="např. Tomáš Dvořák"
                         className={`w-full px-3.5 py-2.5 text-sm rounded-lg border bg-white focus:outline-none transition-colors ${
                           errors.name
                             ? 'border-rose-500 bg-rose-50/30'
-                            : 'border-slate-300 focus:border-[#F07818]'
+                            : 'border-slate-300 focus:border-[#C2560A]'
                         }`}
                       />
                       {errors.name && (
-                        <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1">
-                          <AlertCircle className="w-3 h-3" />
+                        <p id="lead-error-name" role="alert" className="text-[11px] text-rose-700 mt-1 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
                           <span>{errors.name}</span>
                         </p>
                       )}
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-[#17232D] mb-1">
-                        E-mailová adresa <span className="text-rose-500">*</span>
+                      <label htmlFor="lead-email" className="block text-xs font-bold text-[#17232D] mb-1">
+                        E-mailová adresa <span className="text-rose-600">*</span>
                       </label>
                       <input
+                        id="lead-email"
                         type="email"
+                        required
+                        aria-required="true"
+                        aria-invalid={Boolean(errors.email)}
+                        aria-describedby={errors.email ? 'lead-error-email' : undefined}
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="vas@email.cz"
                         className={`w-full px-3.5 py-2.5 text-sm rounded-lg border bg-white focus:outline-none transition-colors ${
                           errors.email
                             ? 'border-rose-500 bg-rose-50/30'
-                            : 'border-slate-300 focus:border-[#F07818]'
+                            : 'border-slate-300 focus:border-[#C2560A]'
                         }`}
                       />
                       {errors.email && (
-                        <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1">
-                          <AlertCircle className="w-3 h-3" />
+                        <p id="lead-error-email" role="alert" className="text-[11px] text-rose-700 mt-1 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
                           <span>{errors.email}</span>
                         </p>
                       )}
@@ -605,46 +673,54 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
                   {/* Phone and Location */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-[#17232D] mb-1">
-                        Telefonní číslo <span className="text-slate-400 font-normal">(doporučeno)</span>
+                      <label htmlFor="lead-phone" className="block text-xs font-bold text-[#17232D] mb-1">
+                        Telefonní číslo <span className="text-slate-500 font-normal">(doporučeno)</span>
                       </label>
                       <input
+                        id="lead-phone"
                         type="tel"
+                        aria-invalid={Boolean(errors.phone)}
+                        aria-describedby={errors.phone ? 'lead-error-phone' : undefined}
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
-                        placeholder="+420 777 000 000"
+                        placeholder={settings.phone.trim() ? `např. ${settings.phone.trim()}` : '+420 ...'}
                         className={`w-full px-3.5 py-2.5 text-sm rounded-lg border bg-white focus:outline-none transition-colors ${
                           errors.phone
                             ? 'border-rose-500 bg-rose-50/30'
-                            : 'border-slate-300 focus:border-[#F07818]'
+                            : 'border-slate-300 focus:border-[#C2560A]'
                         }`}
                       />
                       {errors.phone && (
-                        <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1">
-                          <AlertCircle className="w-3 h-3" />
+                        <p id="lead-error-phone" role="alert" className="text-[11px] text-rose-700 mt-1 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
                           <span>{errors.phone}</span>
                         </p>
                       )}
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-[#17232D] mb-1">
-                        Místo stavby (obec v Olomouckém kraji) <span className="text-rose-500">*</span>
+                      <label htmlFor="lead-location" className="block text-xs font-bold text-[#17232D] mb-1">
+                        Místo stavby (obec v Olomouckém kraji) <span className="text-rose-600">*</span>
                       </label>
                       <input
+                        id="lead-location"
                         type="text"
+                        required
+                        aria-required="true"
+                        aria-invalid={Boolean(errors.location)}
+                        aria-describedby={errors.location ? 'lead-error-location' : undefined}
                         value={location}
                         onChange={(e) => setLocation(e.target.value)}
                         placeholder="např. Olomouc – Hejčín, Prostějov..."
                         className={`w-full px-3.5 py-2.5 text-sm rounded-lg border bg-white focus:outline-none transition-colors ${
                           errors.location
                             ? 'border-rose-500 bg-rose-50/30'
-                            : 'border-slate-300 focus:border-[#F07818]'
+                            : 'border-slate-300 focus:border-[#C2560A]'
                         }`}
                       />
                       {errors.location && (
-                        <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1">
-                          <AlertCircle className="w-3 h-3" />
+                        <p id="lead-error-location" role="alert" className="text-[11px] text-rose-700 mt-1 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
                           <span>{errors.location}</span>
                         </p>
                       )}
@@ -653,41 +729,47 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
 
                   {/* Timeline and Description */}
                   <div>
-                    <label className="block text-xs font-bold text-[#17232D] mb-1">
-                      Předpokládaný termín realizace <span className="text-slate-400 font-normal">(volitelné)</span>
+                    <label htmlFor="lead-timeline" className="block text-xs font-bold text-[#17232D] mb-1">
+                      Předpokládaný termín realizace <span className="text-slate-500 font-normal">(volitelné)</span>
                     </label>
                     <input
+                      id="lead-timeline"
                       type="text"
                       value={preferredTimeline}
                       onChange={(e) => setPreferredTimeline(e.target.value)}
                       placeholder="např. Květen 2027, co nejdříve, flexibilní"
-                      className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 bg-white focus:outline-none focus:border-[#F07818]"
+                      className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 bg-white focus:outline-none focus:border-[#C2560A]"
                     />
                   </div>
 
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs font-bold text-[#17232D]">
-                        Podrobnější popis vašeho záměru <span className="text-rose-500">*</span>
+                      <label htmlFor="lead-description" className="block text-xs font-bold text-[#17232D]">
+                        Podrobnější popis vašeho záměru <span className="text-rose-600">*</span>
                       </label>
-                      <span className="text-[11px] text-slate-400">
+                      <span className="text-[11px] text-slate-500">
                         {description.length} znaků
                       </span>
                     </div>
                     <textarea
+                      id="lead-description"
                       rows={4}
+                      required
+                      aria-required="true"
+                      aria-invalid={Boolean(errors.description)}
+                      aria-describedby={errors.description ? 'lead-error-description' : undefined}
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       placeholder="Napište nám podrobnosti (např. zda chcete sprchový kout či vanu, přibližnou plochu obkladů či podlah, zda bydlíte v bytě během prací apod.)..."
                       className={`w-full px-3.5 py-2.5 text-sm rounded-lg border bg-white focus:outline-none transition-colors ${
                         errors.description
                           ? 'border-rose-500 bg-rose-50/30'
-                          : 'border-slate-300 focus:border-[#F07818]'
+                          : 'border-slate-300 focus:border-[#C2560A]'
                       }`}
                     />
                     {errors.description && (
-                      <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3" />
+                      <p id="lead-error-description" role="alert" className="text-[11px] text-rose-700 mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
                         <span>{errors.description}</span>
                       </p>
                     )}
@@ -695,30 +777,37 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
 
                   {/* File Uploads */}
                   <div>
-                    <label className="block text-xs font-bold text-[#17232D] mb-1">
+                    <span className="block text-xs font-bold text-[#17232D] mb-1">
                       Přílohy / fotografie stávajícího stavu či půdorys{' '}
-                      <span className="text-slate-400 font-normal">(volitelné, max. 5 MB)</span>
-                    </label>
+                      <span className="text-slate-500 font-normal">(volitelné, max. 5 souborů po 5 MB)</span>
+                    </span>
                     <div className="flex items-center gap-3">
-                      <label className="px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 cursor-pointer flex items-center gap-2 transition-colors">
-                        <Paperclip className="w-4 h-4 text-slate-500" />
+                      <label
+                        htmlFor="lead-attachments"
+                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 cursor-pointer flex items-center gap-2 transition-colors focus-within:ring-2 focus-within:ring-[#C2560A]"
+                      >
+                        <Paperclip className="w-4 h-4 text-slate-600" />
                         <span>Připojit foto nebo PDF</span>
                         <input
+                          id="lead-attachments"
+                          ref={fileInputRef}
                           type="file"
                           multiple
                           accept="image/jpeg,image/png,image/webp,application/pdf"
+                          aria-invalid={Boolean(errors.attachments)}
+                          aria-describedby={errors.attachments ? 'lead-error-attachments' : 'lead-attachments-help'}
                           onChange={handleFileUpload}
-                          className="hidden"
+                          className="sr-only"
                         />
                       </label>
-                      <span className="text-[11px] text-slate-400">
-                        Fotografie stávajícího jádra či půdorysu nám velmi pomohou při odhadu.
+                      <span id="lead-attachments-help" className="text-[11px] text-slate-500">
+                        Fotografie stávajícího jádra či půdorysu (JPG, PNG, WebP, PDF) nám pomohou při odhadu.
                       </span>
                     </div>
 
                     {errors.attachments && (
-                      <p className="text-[11px] text-rose-600 mt-1.5 flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3" />
+                      <p id="lead-error-attachments" role="alert" className="text-[11px] text-rose-700 mt-1.5 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
                         <span>{errors.attachments}</span>
                       </p>
                     )}
@@ -730,14 +819,15 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
                             key={idx}
                             className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 border border-slate-200 rounded text-xs text-slate-700"
                           >
-                            <FileText className="w-3.5 h-3.5 text-slate-400" />
+                            <FileText className="w-3.5 h-3.5 text-slate-500" />
                             <span className="truncate max-w-[140px]">{file.name}</span>
-                            <span className="text-slate-400 text-[10px]">({file.size} KB)</span>
+                            <span className="text-slate-500 text-[10px]">({file.size} KB)</span>
                             <button
                               type="button"
                               onClick={() => removeAttachment(idx)}
-                              className="text-slate-400 hover:text-rose-600 ml-1"
-                              title="Odstranit"
+                              className="text-slate-500 hover:text-rose-700 ml-1 cursor-pointer"
+                              title="Odstranit přílohu"
+                              aria-label={`Odstranit přílohu ${file.name}`}
                             >
                               <X className="w-3.5 h-3.5" />
                             </button>
@@ -749,12 +839,16 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
 
                   {/* GDPR Consent - Not pre-checked */}
                   <div className="pt-2">
-                    <label className="flex items-start gap-2.5 cursor-pointer">
+                    <label htmlFor="lead-gdpr-consent" className="flex items-start gap-2.5 cursor-pointer">
                       <input
+                        id="lead-gdpr-consent"
                         type="checkbox"
                         checked={gdprConsent}
+                        aria-required="true"
+                        aria-invalid={Boolean(errors.gdpr)}
+                        aria-describedby={errors.gdpr ? 'lead-error-gdpr' : undefined}
                         onChange={(e) => setGdprConsent(e.target.checked)}
-                        className="mt-0.5 w-4 h-4 rounded border-slate-300 text-[#F07818] focus:ring-[#F07818] cursor-pointer"
+                        className="mt-0.5 w-4 h-4 rounded border-slate-300 text-[#C2560A] focus:ring-[#C2560A] cursor-pointer"
                       />
                       <span className="text-xs text-slate-600 leading-relaxed">
                         Souhlasím se zpracováním poskytnutých osobních údajů pro účely vyřízení
@@ -765,17 +859,17 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
                             e.preventDefault();
                             onOpenGdpr();
                           }}
-                          className="text-[#F07818] underline font-semibold hover:text-[#d9660e]"
+                          className="text-[#B84F00] underline font-semibold hover:text-[#9E4306] cursor-pointer"
                         >
                           informacemi o ochraně osobních údajů
                         </button>
                         . Údaje nebudou předány třetím stranám.{' '}
-                        <span className="text-rose-500">*</span>
+                        <span className="text-rose-600">*</span>
                       </span>
                     </label>
                     {errors.gdpr && (
-                      <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3" />
+                      <p id="lead-error-gdpr" role="alert" className="text-[11px] text-rose-700 mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
                         <span>{errors.gdpr}</span>
                       </p>
                     )}
@@ -784,7 +878,7 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
                   {/* Submit Button */}
                   <div className="pt-3 space-y-2">
                     {errors.submit && (
-                      <p className="text-xs text-rose-600 flex items-center gap-1.5">
+                      <p role="alert" className="text-xs text-rose-700 flex items-center gap-1.5">
                         <AlertCircle className="w-4 h-4 shrink-0" />
                         <span>{errors.submit}</span>
                       </p>
@@ -792,7 +886,7 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="w-full py-4 bg-[#F07818] hover:bg-[#d9660e] active:scale-99 text-white font-extrabold text-base rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                      className="w-full py-4 bg-[#C2560A] hover:bg-[#9E4306] active:scale-99 text-white font-extrabold text-base rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
                     >
                       <Send className="w-5 h-5" />
                       <span>
@@ -801,7 +895,7 @@ export const LeadFormSection: React.FC<LeadFormSectionProps> = ({
                           : 'Odeslat nezávaznou poptávku na stavbu'}
                       </span>
                     </button>
-                    <p className="text-center text-[11px] text-slate-400 mt-2">
+                    <p className="text-center text-[11px] text-slate-500 mt-2">
                       Bezplatná návštěva na stavbě a položková kalkulace bez závazků.
                     </p>
                   </div>

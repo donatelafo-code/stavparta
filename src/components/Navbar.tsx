@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Hammer, Menu, X, Phone, ArrowRight, Lock, Calculator } from 'lucide-react';
 import { SiteSettings } from '../types';
+import { getPreferredScrollBehavior } from '../hooks/useModalAccessibility';
 
 interface NavbarProps {
   settings: SiteSettings;
@@ -16,12 +18,18 @@ export const Navbar: React.FC<NavbarProps> = ({
   unreadLeadsCount,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const scrollTo = (id: string) => {
     setMobileMenuOpen(false);
+    if (location.pathname !== '/') {
+      navigate(`/#${id}`);
+      return;
+    }
     const element = document.getElementById(id);
     if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
+      element.scrollIntoView({ behavior: getPreferredScrollBehavior() });
     }
   };
 
@@ -36,13 +44,22 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
           <div className="flex items-center gap-4">
             <span className="hidden sm:inline">Pracovní doba: {settings.workingHours}</span>
-            <a
-              href={`tel:${settings.phone.replace(/\s+/g, '')}`}
-              className="flex items-center gap-1.5 text-[#F07818] font-semibold hover:text-white transition-colors"
-            >
-              <Phone className="w-3.5 h-3.5" />
-              <span>{settings.phone}</span>
-            </a>
+            {settings.phone.trim() ? (
+              <a
+                href={`tel:${settings.phone.replace(/\s+/g, '')}`}
+                className="flex items-center gap-1.5 text-[#F07818] font-semibold hover:text-white transition-colors"
+              >
+                <Phone className="w-3.5 h-3.5" />
+                <span>{settings.phone}</span>
+              </a>
+            ) : settings.email.trim() ? (
+              <a
+                href={`mailto:${settings.email.trim()}`}
+                className="flex items-center gap-1.5 text-[#F07818] font-semibold hover:text-white transition-colors"
+              >
+                <span>{settings.email}</span>
+              </a>
+            ) : null}
           </div>
         </div>
       </div>
@@ -50,22 +67,24 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* Main Top Bar Contract: Zone 1 (Brand) - Zone 2 (4-5 Nav Links) - Zone 3 (1 Primary Action) */}
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-3.5 flex items-center justify-between gap-8">
         {/* Zone 1: Brand wordmark element */}
-        <a
-          href="#"
-          onClick={(e) => {
-            e.preventDefault();
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+        <Link
+          to="/"
+          onClick={() => {
+            setMobileMenuOpen(false);
+            if (location.pathname === '/') {
+              window.scrollTo({ top: 0, behavior: getPreferredScrollBehavior() });
+            }
           }}
           className="flex items-center gap-2.5 text-xl font-extrabold tracking-tight text-white whitespace-nowrap shrink-0 group"
         >
-          <div className="w-9 h-9 rounded bg-[#F07818] flex items-center justify-center text-white shadow-sm transition-transform group-hover:scale-105">
+          <div className="w-9 h-9 rounded bg-[#C2560A] flex items-center justify-center text-white shadow-sm transition-transform group-hover:scale-105">
             <Hammer className="w-5 h-5" />
           </div>
           <div className="flex flex-col">
             <span className="leading-none text-lg tracking-wider font-black">STAVPARTA</span>
             <span className="text-[10px] text-slate-400 font-normal tracking-normal">stavební řemeslo</span>
           </div>
-        </a>
+        </Link>
 
         {/* Zone 2: Navigation Links */}
         <nav className="hidden lg:flex items-center gap-4 xl:gap-6 text-sm font-medium text-slate-300">
@@ -130,7 +149,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="flex items-center gap-3 shrink-0">
           <button
             onClick={() => onOpenLeadForm()}
-            className="px-4 py-2.5 text-sm font-bold text-white bg-[#F07818] hover:bg-[#d9660e] active:scale-98 rounded shadow-md transition-all whitespace-nowrap shrink-0 flex items-center gap-2 cursor-pointer"
+            className="px-4 py-2.5 text-sm font-bold text-white bg-[#C2560A] hover:bg-[#9E4306] active:scale-98 rounded shadow-md transition-all whitespace-nowrap shrink-0 flex items-center gap-2 cursor-pointer"
           >
             <span>Nezávazně poptat</span>
             <ArrowRight className="w-4 h-4" />
@@ -145,7 +164,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Lock className="w-4 h-4" />
             {unreadLeadsCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#F07818] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#C2560A] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                 {unreadLeadsCount}
               </span>
             )}
@@ -244,7 +263,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 setMobileMenuOpen(false);
                 onOpenLeadForm();
               }}
-              className="w-full py-3 text-center text-sm font-bold text-white bg-[#F07818] rounded flex items-center justify-center gap-2"
+              className="w-full py-3 text-center text-sm font-bold text-white bg-[#C2560A] hover:bg-[#9E4306] rounded flex items-center justify-center gap-2"
             >
               <span>Nezávazně poptat stavbu</span>
               <ArrowRight className="w-4 h-4" />

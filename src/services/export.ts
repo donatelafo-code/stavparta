@@ -1,4 +1,3 @@
-import JSZip from 'jszip';
 import {
   BlogPost,
   Lead,
@@ -93,6 +92,7 @@ export function exportLeadsToCsv(leads: Lead[]): void {
 }
 
 export async function exportFullBackupZip(snapshot: ExportDatabaseSnapshot): Promise<void> {
+  const { default: JSZip } = await import('jszip');
   const zip = new JSZip();
   const dump = buildDumpPayload(snapshot);
   const date = new Date().toISOString().slice(0, 10);

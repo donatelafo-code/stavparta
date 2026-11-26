@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
@@ -8,10 +9,11 @@ import {
   CheckCircle2,
   ArrowRight,
   ShieldCheck,
-  Building2,
   Search,
+  Map as MapIcon,
 } from 'lucide-react';
 import { SiteSettings } from '../types';
+import { CITY_PAGES } from '../shared/cityPages';
 
 interface ServiceAreaCity {
   id: string;
@@ -124,7 +126,7 @@ interface ServiceAreaMapSectionProps {
 }
 
 export const ServiceAreaMapSection: React.FC<ServiceAreaMapSectionProps> = ({
-  settings,
+  settings: _settings,
   onOpenLeadForm,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -133,6 +135,7 @@ export const ServiceAreaMapSection: React.FC<ServiceAreaMapSectionProps> = ({
 
   const [selectedCity, setSelectedCity] = useState<ServiceAreaCity>(SERVICE_CITIES[0]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [mapConsentGranted, setMapConsentGranted] = useState(false);
 
   // Filter cities by search
   const filteredCities = SERVICE_CITIES.filter(
@@ -141,9 +144,9 @@ export const ServiceAreaMapSection: React.FC<ServiceAreaMapSectionProps> = ({
       c.district.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Initialize Leaflet map
+  // Initialize Leaflet map only after explicit visitor consent (external CARTO / OSM requests)
   useEffect(() => {
-    if (!mapContainerRef.current || mapInstanceRef.current) return;
+    if (!mapConsentGranted || !mapContainerRef.current || mapInstanceRef.current) return;
 
     // Center on Zábřeh and Olomoucký kraj
     const map = L.map(mapContainerRef.current, {
@@ -198,7 +201,7 @@ export const ServiceAreaMapSection: React.FC<ServiceAreaMapSectionProps> = ({
           width: ${isBase ? '36px' : '28px'};
           height: ${isBase ? '36px' : '28px'};
           border-radius: 9999px;
-          background-color: ${isBase ? '#F07818' : '#17232D'};
+          background-color: ${isBase ? '#C2560A' : '#17232D'};
           color: #ffffff;
           border: 2px solid #ffffff;
           box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
@@ -210,7 +213,7 @@ export const ServiceAreaMapSection: React.FC<ServiceAreaMapSectionProps> = ({
           ${isBase ? '★' : '●'}
           ${
             isBase
-              ? '<span style="position: absolute; width: 44px; height: 44px; border-radius: 9999px; border: 2px solid #F07818; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite; opacity: 0.4;"></span>'
+              ? '<span style="position: absolute; width: 44px; height: 44px; border-radius: 9999px; border: 2px solid #C2560A; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite; opacity: 0.4;"></span>'
               : ''
           }
         </div>
@@ -229,7 +232,7 @@ export const ServiceAreaMapSection: React.FC<ServiceAreaMapSectionProps> = ({
       const popupContent = `
         <div style="font-family: inherit; font-size: 12px; color: #17232D; min-width: 170px; padding: 2px;">
           <div style="font-size: 13px; font-weight: 800; margin-bottom: 2px; color: #17232D;">
-            ${city.name} ${city.isMainBase ? '<span style="color:#F07818; font-size:10px;">(Základna)</span>' : ''}
+            ${city.name} ${city.isMainBase ? '<span style="color:#B84F00; font-size:10px;">(Základna)</span>' : ''}
           </div>
           <div style="font-size: 11px; color: #64748B; margin-bottom: 6px;">${city.district}</div>
           <div style="font-size: 11px; color: #059669; font-weight: 600; margin-bottom: 4px;">
@@ -264,8 +267,9 @@ export const ServiceAreaMapSection: React.FC<ServiceAreaMapSectionProps> = ({
       window.removeEventListener('resize', handleResize);
       map.remove();
       mapInstanceRef.current = null;
+      markersRef.current = {};
     };
-  }, []);
+  }, [mapConsentGranted]);
 
   // When city is selected via side list, pan map to it and open popup
   const handleSelectCity = (city: ServiceAreaCity) => {
@@ -293,7 +297,7 @@ export const ServiceAreaMapSection: React.FC<ServiceAreaMapSectionProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-8">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-12">
-          <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#F07818] mb-2">
+          <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#B84F00] mb-2">
             <MapPin className="w-4 h-4" />
             <span>Regionální působnost</span>
             <span className="text-slate-400">/</span>
@@ -309,42 +313,83 @@ export const ServiceAreaMapSection: React.FC<ServiceAreaMapSectionProps> = ({
 
         {/* Map & City Panel Grid */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-lg overflow-hidden grid grid-cols-1 lg:grid-cols-12">
-          {/* Left: Interactive Leaflet Map (7 cols) */}
-          <div className="lg:col-span-7 relative flex flex-col min-h-[380px] sm:min-h-[480px]">
-            {/* Map Container */}
-            <div ref={mapContainerRef} className="flex-1 w-full h-full z-10" />
+          {/* Left: Interactive Leaflet Map with Privacy Consent Gate (7 cols) */}
+          <div className="lg:col-span-7 relative flex flex-col min-h-[380px] sm:min-h-[480px] bg-[#17232D]">
+            {mapConsentGranted ? (
+              <>
+                <div ref={mapContainerRef} className="flex-1 w-full h-full z-10" />
 
-            {/* Map Legend Overlay (Top Left) */}
-            <div className="absolute top-3 left-3 z-20 bg-[#17232D]/90 backdrop-blur-xs text-white p-3 rounded-xl border border-slate-700 shadow-md max-w-[230px]">
-              <div className="text-[11px] font-extrabold uppercase tracking-wider text-[#F07818] mb-1">
-                Oblast působení
-              </div>
-              <div className="space-y-1 text-[11px] text-slate-300">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#F07818] inline-block shrink-0" />
-                  <span>Centrála (Zábřeh na Moravě)</span>
+                {/* Map Legend Overlay (Top Left) */}
+                <div className="absolute top-3 left-3 z-20 bg-[#17232D]/90 backdrop-blur-xs text-white p-3 rounded-xl border border-slate-700 shadow-md max-w-[230px]">
+                  <div className="text-[11px] font-extrabold uppercase tracking-wider text-[#F07818] mb-1">
+                    Oblast působení
+                  </div>
+                  <div className="space-y-1 text-[11px] text-slate-300">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#C2560A] inline-block shrink-0" />
+                      <span>Centrála (Zábřeh na Moravě)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-white inline-block shrink-0" />
+                      <span>Pravidelně obsluhovaná města</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full border border-dashed border-[#FF9642] inline-block shrink-0" />
+                      <span>Dojezd na stavbu bez příplatku</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-white inline-block shrink-0" />
-                  <span>Pravidelně obsluhovaná města</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full border border-dashed border-[#F07818] inline-block shrink-0" />
-                  <span>Dojezd na stavbu bez příplatku</span>
-                </div>
-              </div>
-            </div>
 
-            {/* Reset Map View Button (Bottom Left) */}
-            <div className="absolute bottom-3 left-3 z-20">
-              <button
-                type="button"
-                onClick={handleResetView}
-                className="px-3 py-1.5 bg-white/95 hover:bg-white text-slate-700 text-xs font-bold rounded-lg shadow-md border border-slate-200 transition-colors cursor-pointer flex items-center gap-1.5"
-              >
-                <span>Celý kraj (Přehled)</span>
-              </button>
-            </div>
+                {/* Reset Map View Button (Bottom Left) */}
+                <div className="absolute bottom-3 left-3 z-20 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleResetView}
+                    className="px-3 py-1.5 bg-white/95 hover:bg-white text-slate-700 text-xs font-bold rounded-lg shadow-md border border-slate-200 transition-colors cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>Celý kraj (Přehled)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMapConsentGranted(false)}
+                    className="px-2.5 py-1.5 bg-[#17232D]/85 hover:bg-[#17232D] text-slate-200 text-[11px] font-medium rounded-lg border border-slate-700 transition-colors cursor-pointer"
+                  >
+                    Skrýt mapu
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-10 text-center text-white bg-gradient-to-br from-[#17232D] via-[#1E2C39] to-[#263746]">
+                <div className="w-14 h-14 rounded-2xl bg-[#C2560A]/25 border border-[#FF9642]/45 text-[#FF9642] flex items-center justify-center mb-4">
+                  <MapIcon className="w-7 h-7" />
+                </div>
+                <h3 className="text-lg sm:text-xl font-extrabold text-white mb-2">
+                  Interaktivní mapa působnosti (Olomoucký kraj)
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-300 max-w-md leading-relaxed mb-5">
+                  Z důvodu ochrany soukromí se externí mapové podklady (OpenStreetMap / CARTO)
+                  nenačítají automaticky. Kliknutím níže povolíte jejich načtení (dojde k přenosu
+                  vaší IP adresy poskytovateli mapy). Přehled měst si můžete prohlédnout i v panelu
+                  vpravo bez načtení mapy.
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-2 mb-6 max-w-md text-[11px] text-slate-200">
+                  <span className="px-2.5 py-1 rounded bg-white/10 border border-white/15 font-semibold">
+                    ★ Centrála: Zábřeh na Moravě
+                  </span>
+                  <span className="px-2.5 py-1 rounded bg-white/10 border border-white/15">
+                    Šumperk · Mohelnice · Olomouc · Prostějov · Přerov
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMapConsentGranted(true)}
+                  className="px-5 py-3 bg-[#C2560A] hover:bg-[#9E4306] text-white font-bold text-xs sm:text-sm rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-2"
+                >
+                  <MapPin className="w-4 h-4" />
+                  <span>Načíst interaktivní mapu</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Right: City Details & Quick Selector (5 cols) */}
@@ -352,13 +397,17 @@ export const ServiceAreaMapSection: React.FC<ServiceAreaMapSectionProps> = ({
             <div className="space-y-6">
               {/* Quick Search */}
               <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                <label htmlFor="map-city-search" className="sr-only">
+                  Hledat obec či město v Olomouckém kraji
+                </label>
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
                 <input
+                  id="map-city-search"
                   type="text"
                   placeholder="Hledat obec či město v kraji..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#F07818]"
+                  className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#C2560A]"
                 />
               </div>
 
@@ -375,7 +424,7 @@ export const ServiceAreaMapSection: React.FC<ServiceAreaMapSectionProps> = ({
                       onClick={() => handleSelectCity(city)}
                       className={`px-2.5 py-1 text-xs rounded-lg font-semibold transition-all cursor-pointer ${
                         selectedCity.id === city.id
-                          ? 'bg-[#F07818] text-white shadow-xs'
+                          ? 'bg-[#C2560A] text-white shadow-xs'
                           : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                       }`}
                     >
@@ -389,7 +438,7 @@ export const ServiceAreaMapSection: React.FC<ServiceAreaMapSectionProps> = ({
               <div className="p-4 bg-[#F8FAFC] border border-slate-200 rounded-xl space-y-3">
                 <div className="flex items-start justify-between">
                   <div>
-                    <span className="text-[10px] font-mono text-[#F07818] font-bold uppercase">
+                    <span className="text-[10px] font-mono text-[#B84F00] font-bold uppercase">
                       {selectedCity.district}
                     </span>
                     <h3 className="text-lg font-extrabold text-[#17232D]">
@@ -397,7 +446,7 @@ export const ServiceAreaMapSection: React.FC<ServiceAreaMapSectionProps> = ({
                     </h3>
                   </div>
                   {selectedCity.isMainBase && (
-                    <span className="px-2 py-0.5 bg-orange-100 text-[#F07818] border border-orange-200 rounded text-[10px] font-bold">
+                    <span className="px-2 py-0.5 bg-orange-100 text-[#9E4306] border border-orange-200 rounded text-[10px] font-bold">
                       Centrála
                     </span>
                   )}
@@ -419,22 +468,40 @@ export const ServiceAreaMapSection: React.FC<ServiceAreaMapSectionProps> = ({
                   <ul className="space-y-1 text-xs text-slate-600">
                     {selectedCity.typicalWork.map((work, idx) => (
                       <li key={idx} className="flex items-center gap-2">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-[#F07818] shrink-0" />
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[#B84F00] shrink-0" />
                         <span>{work}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
+
+                {(() => {
+                  const cityRoute = CITY_PAGES.find(
+                    (cp) => cp.cityName.toLowerCase() === selectedCity.name.toLowerCase()
+                  );
+                  if (!cityRoute) return null;
+                  return (
+                    <div className="pt-2 border-t border-slate-200/80">
+                      <Link
+                        to={`/lokalita/${cityRoute.slug}`}
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-[#B84F00] hover:underline"
+                      >
+                        <span>Detail lokality {cityRoute.cityName}</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Guarantees Strip */}
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div className="flex items-center gap-2 text-slate-700">
-                  <Car className="w-4 h-4 text-[#F07818] shrink-0" />
+                  <Car className="w-4 h-4 text-[#B84F00] shrink-0" />
                   <span>Zaměření na místě zdarma</span>
                 </div>
                 <div className="flex items-center gap-2 text-slate-700">
-                  <ShieldCheck className="w-4 h-4 text-[#F07818] shrink-0" />
+                  <ShieldCheck className="w-4 h-4 text-[#B84F00] shrink-0" />
                   <span>Položkový rozpočet bez závazku</span>
                 </div>
               </div>

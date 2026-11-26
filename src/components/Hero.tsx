@@ -1,6 +1,9 @@
 import React from 'react';
-import { ArrowRight, CheckCircle2, MapPin, ShieldCheck, Clock, FileText } from 'lucide-react';
+import { ArrowRight, ShieldCheck, Clock, CheckCircle2 } from 'lucide-react';
 import { SiteSettings } from '../types';
+import { IMAGE_PATHS } from '../shared/responsiveImages';
+import { ResponsiveImage } from './ResponsiveImage';
+import { getPreferredScrollBehavior } from '../hooks/useModalAccessibility';
 
 interface HeroProps {
   settings: SiteSettings;
@@ -10,16 +13,18 @@ interface HeroProps {
 export const Hero: React.FC<HeroProps> = ({ settings, onOpenLeadForm }) => {
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
-    if (el) el.scrollIntoView({ behavior: 'smooth' });
+    if (el) el.scrollIntoView({ behavior: getPreferredScrollBehavior() });
   };
 
   return (
     <section className="relative bg-[#17232D] text-white overflow-hidden border-b border-[#263746]">
       {/* Background Hero Image with measured contrast scrim */}
       <div className="absolute inset-0 z-0">
-        <img
-          src="/src/assets/images/hero_craft_construction_1793401118434.jpg"
+        <ResponsiveImage
+          src={IMAGE_PATHS.HERO}
           alt="Řemeslníci STAVPARTA při poctivé rekonstrukci interiéru"
+          sizes="100vw"
+          priority
           className="w-full h-full object-cover object-center opacity-35"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-[#17232D] via-[#17232D]/90 to-[#17232D]/60" />
@@ -29,8 +34,8 @@ export const Hero: React.FC<HeroProps> = ({ settings, onOpenLeadForm }) => {
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-8 py-16 sm:py-24 lg:py-28">
         <div className="max-w-3xl">
           {/* Slogan Kicker */}
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#263746]/90 border border-slate-600 rounded-md text-xs font-semibold uppercase tracking-wider text-[#F07818] mb-6">
-            <span className="w-2 h-2 rounded-full bg-[#F07818]" />
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#263746]/90 border border-slate-600 rounded-md text-xs font-semibold uppercase tracking-wider text-[#FF9642] mb-6">
+            <span className="w-2 h-2 rounded-full bg-[#FF9642]" />
             <span>{settings.slogan}</span>
             <span className="text-slate-400">·</span>
             <span className="text-slate-300 normal-case">{settings.operatingRegion}</span>
@@ -52,7 +57,7 @@ export const Hero: React.FC<HeroProps> = ({ settings, onOpenLeadForm }) => {
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 mb-10">
             <button
               onClick={onOpenLeadForm}
-              className="px-6 py-4 text-base font-bold text-white bg-[#F07818] hover:bg-[#d9660e] active:scale-98 rounded shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+              className="px-6 py-4 text-base font-bold text-white bg-[#C2560A] hover:bg-[#9E4306] active:scale-98 rounded shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <span>Nezávazně poptat zakázku</span>
               <ArrowRight className="w-5 h-5" />
@@ -97,7 +102,7 @@ export const Hero: React.FC<HeroProps> = ({ settings, onOpenLeadForm }) => {
             </span>
             <button
               onClick={() => scrollTo('pusobnost')}
-              className="px-2.5 py-0.5 bg-[#F07818] text-white border border-[#F07818] rounded text-[11px] font-bold transition-all hover:bg-[#d9660e] cursor-pointer flex items-center gap-1 shadow-xs"
+              className="px-2.5 py-0.5 bg-[#C2560A] text-white border border-[#C2560A] rounded text-[11px] font-bold transition-all hover:bg-[#9E4306] cursor-pointer flex items-center gap-1 shadow-xs"
               title="Centrála a domovská základna STAVPARTA – Zábřeh na Moravě"
             >
               <span>★ Zábřeh na Moravě (Centrála)</span>
@@ -107,7 +112,7 @@ export const Hero: React.FC<HeroProps> = ({ settings, onOpenLeadForm }) => {
                 <button
                   key={city}
                   onClick={() => scrollTo('pusobnost')}
-                  className="px-2 py-0.5 bg-[#263746]/80 hover:bg-[#F07818] hover:text-white border border-slate-700 hover:border-[#F07818] rounded text-[11px] text-slate-300 transition-colors cursor-pointer"
+                  className="px-2 py-0.5 bg-[#263746]/80 hover:bg-[#C2560A] hover:text-white border border-slate-700 hover:border-[#C2560A] rounded text-[11px] text-slate-300 transition-colors cursor-pointer"
                   title={`Zobrazit působnost a dojezd pro ${city} na mapě`}
                 >
                   {city}
@@ -119,13 +124,15 @@ export const Hero: React.FC<HeroProps> = ({ settings, onOpenLeadForm }) => {
       </div>
 
       {/* Demo notice bar */}
-      <div className="bg-[#0D151C] border-t border-[#1E2B37] py-2 px-4 text-center text-xs text-slate-400">
-        <span className="font-medium text-amber-400 mr-2">[DEMO REŽIM]</span>
-        <span>
-          Web je v předvýrobní verzi. Veškeré fotografie realizací a texty referencí jsou dočasné a
-          připravené k doplnění zadavatelem.
-        </span>
-      </div>
+      {import.meta.env.VITE_DEMO_MODE === 'true' && (
+        <div className="bg-[#0D151C] border-t border-[#1E2B37] py-2 px-4 text-center text-xs text-slate-400">
+          <span className="font-medium text-amber-400 mr-2">[DEMO REŽIM]</span>
+          <span>
+            Web je v předvýrobní verzi. Veškeré fotografie realizací a texty referencí jsou dočasné a
+            připravené k doplnění zadavatelem.
+          </span>
+        </div>
+      )}
     </section>
   );
 };
